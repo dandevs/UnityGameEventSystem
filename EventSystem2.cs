@@ -22,7 +22,7 @@ namespace EventSystem2 {
             }
 
             if (container.modifiers.Count > 0)
-                container.modifiers[0].Push(@event);
+                container.modifiers[0].Push(in @event);
             else
                 InvokeEvent(@event);
         }
@@ -47,16 +47,18 @@ namespace EventSystem2 {
         }
 
         public void Continue<T>(in T @event, EventModifier modifier) {
-            if (!modifiersDict.TryGetValue(typeof(T), out var container))
+            if (!modifiersDict.TryGetValue(typeof(T), out var container)) {
+                Debug.LogWarning($"({modifier}) No modifiers found for event {typeof(T)}.");
                 return;
-                
+            }
+
             var index = container.modifiers.IndexOf(modifier);
 
             if (index == -1)
                 return;
 
-            if (index + 1 < container.modifiers.Count)
-                container.modifiers[index + 1].Push(@event);
+            if (index + 1 < container.modifiers.Count) 
+                container.modifiers[index + 1].Push(in @event);
             else
                 InvokeEvent(@event);
         }
@@ -152,7 +154,7 @@ namespace EventSystem2 {
             set => _order = value;
         }
 
-        public abstract void Push<T>(T @event);
+        public abstract void Push<T>(in T @event);
 
         public void Continue<T>(in T @event) {
             system.Continue(in @event, this);
@@ -163,7 +165,7 @@ namespace EventSystem2 {
         [PropertyOrder(1000)]
         public List<THandle> handles = new();
 
-        public override void Push<T>(T @event) {
+        public override void Push<T>(in T @event) {
             var handle = EventHandle.GetHandle<THandle>();
 
             if (handle.Initialize(@event, this)) {
@@ -198,8 +200,8 @@ namespace EventSystem2 {
         protected int frameLastUpdated = -1;
         protected virtual Type eventType => typeof(object);
 
-        public abstract void Enter();
-        public abstract void Exit();
+        public virtual void Enter() => OnEnter();
+        public virtual void Exit() => OnExit();
         public abstract bool Update();
 
         protected virtual void OnEnter() {}
@@ -209,7 +211,7 @@ namespace EventSystem2 {
         public abstract bool Initialize<T>(T @event, EventModifier modifier);
 
         public bool IsType<TSource, TTarget>(TSource @in, out TTarget @out, out Func<TTarget, TSource> recast) {
-            if (typeof(TSource) == typeof(TTarget)) {
+            if (typeof(TTarget).IsAssignableFrom(typeof(TSource))) {
                 @out = UnsafeUtility.As<TSource, TTarget>(ref @in);
                 recast = static (TTarget value) => UnsafeUtility.As<TTarget, TSource>(ref value);
                 return true;
@@ -242,25 +244,24 @@ namespace EventSystem2 {
         
         [Serializable]
         public abstract class GenericEventHolder {
-            public abstract bool Update();
+            public abstract bool Update(EventHandle handle);
         }
         
         [Serializable]
         public class GenericEventHolder<T> : GenericEventHolder {
             private static readonly ConditionalWeakTable<EventHandle, GenericEventHolder<T>> cache = new();
             public T @event;
-            public EventHandle handle;
 
             public static GenericEventHolder<T> Get(EventHandle handle) {
                 if (cache.TryGetValue(handle, out var helper)) 
                     return helper;
 
-                helper = new() { handle = handle };
+                helper = new();
                 cache.Add(handle, helper);
                 return helper;
             }
 
-            public override bool Update() {
+            public override bool Update(EventHandle handle) {
                 return handle.OnUpdate(ref @event);
             }
         }
@@ -269,6 +270,8 @@ namespace EventSystem2 {
     public abstract class EventHandle<TModifier> : EventHandle where TModifier : EventModifier {
         [HideInInspector]
         public TModifier modifier;
+
+        [SerializeReference, HideReferenceObjectPicker, HideLabel, PropertyOrder(100)]
         private GenericEventHolder genericHelper;
 
         public override bool Initialize<T>(T @event, EventModifier modifier) {
@@ -286,27 +289,30 @@ namespace EventSystem2 {
             return true;
         }
 
-        public override void Enter() => OnEnter();
-        public override void Exit() => OnExit();
+        public sealed override void Enter() => OnEnter();
+        public sealed override void Exit() => OnExit();
 
         public override bool Update() {
             var frame = Time.frameCount;
 
             if (frameLastUpdated != frame) {
                 frameLastUpdated = frame;
-                return genericHelper.Update();
+                return genericHelper.Update(this);
             }
             else
                 return false;
         }
 
-        public void Continue<T>(in T @event) {
+        protected void Continue<T>(in T @event) {
             modifier.Continue(in @event);
         }
     }
 
-    public abstract class EventHandle<TModifier, TEvent> : EventHandle<TModifier> where TModifier : EventModifier {
-        protected override Type eventType => typeof(TEvent);
+    public abstract class EventHandle<TModifier, TEvent> : EventHandle where TModifier : EventModifier {
+        [HideInInspector]
+        public TModifier modifier;
+
+        [PropertyOrder(100)]
         public TEvent @event;
 
         public override bool Initialize<T>(T @event, EventModifier modifier) {
@@ -315,7 +321,7 @@ namespace EventSystem2 {
                 return false;
             }
 
-            if (typeof(T) != typeof(TEvent)) {
+            if (!typeof(T).IsAssignableFrom(typeof(TEvent))) {
                 Debug.LogWarning($"Event {typeof(TEvent)} expected, but {typeof(T)} received.");
                 return false;
             }
@@ -325,6 +331,9 @@ namespace EventSystem2 {
 
             return true;
         }
+
+        public sealed override void Enter() => OnEnter();
+        public sealed override void Exit() => OnExit();
 
         public override bool Update() {
             var frame = Time.frameCount;
@@ -339,6 +348,10 @@ namespace EventSystem2 {
 
         protected sealed override bool OnUpdate<T>(ref T @event) => true;
         protected abstract bool OnUpdate(ref TEvent @event);
+
+        protected void Continue(in TEvent @event) {
+            modifier.Continue(in @event);
+        }
     }
 
     //------------------------------------------------------------------------------------------------------------------
