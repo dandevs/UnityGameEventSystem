@@ -25,7 +25,7 @@ namespace EventPipelines {
         /// Advances every modifier's handles. Owners call this once per frame, per field.
         /// Null pipeline elements (inspector "+" inserts) are skipped.
         /// </summary>
-        public void Tick() {
+        public void Update() {
             for (var i = 0; i < _pipeline.Count; i++)
                 _pipeline[i]?.Tick();
         }

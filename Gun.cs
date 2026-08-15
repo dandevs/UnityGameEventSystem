@@ -28,7 +28,7 @@ public class Gun : MonoBehaviour
 
     private void Update()
     {
-        _trigger.Tick();
+        _trigger.Update();
 
         // Simulates 5 fast clicks (12.5/s) to demo the pipeline, e.g. Debounce -> Burst.
         if (_clicks < 5 && Time.time >= _nextClick)

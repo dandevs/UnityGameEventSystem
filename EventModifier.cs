@@ -5,7 +5,8 @@ using UnityEngine;
 namespace EventPipelines {
     /// <summary>
     /// Field-based chain node. Plain class — lives inside an EventModified&lt;T&gt; pipeline
-    /// and is ticked by the pipeline's Tick(). Owner is assigned at registration;
+    /// and is advanced by the pipeline owner's Update() (which ticks each modifier).
+    /// Owner is assigned at registration;
     /// Continue walks the owner's pipeline (next modifier, or Settle at the end).
     /// </summary>
     [Serializable]

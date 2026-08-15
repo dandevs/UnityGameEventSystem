@@ -4,7 +4,7 @@ Field-based event pipeline system for Unity. An `EventModified<T>` field owns an
 pipeline of plain-class modifiers; writing the field (`.Value` / `.Post()`) enters the
 pipeline, each modifier rents pooled `EventHandle`s that tick per frame, and the settled
 result is cached back into the field without retriggering. MonoBehaviours appear only as
-pipeline *owners* (they call `Tick()` in `Update`).
+pipeline *owners* (they call the field's `Update()` from their MonoBehaviour `Update`).
 
 **2026-08 field-only rewrite:** the GameObject hub (`EventListenerModifierSystem`,
 `DispatchEvent`, drag-and-drop `EventModifierContainer`s, per-type registration) was
@@ -41,7 +41,7 @@ editor code. Assembly-CSharp sees the plugin fine (game code just adds
 ## Architecture
 
 ```
-Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick()) ─→ Continue
+Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.Update()) ─→ Continue
              │                                                        │
              │                              next modifier's Push ←─────┤
              │                                                        │
@@ -52,7 +52,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 
 | File | Contents |
 |---|---|
-| `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Tick) + non-generic base (pipeline, chain walk) |
+| `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Update) + non-generic base (pipeline, chain walk) |
 | `EventModifier.cs` | Plain `EventModifier` (Push/Tick abstract, Owner, Continue, Reset-abort) + `EventModifier<THandle>` (rent/tick/retire handles, drain-on-Reset) |
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
@@ -81,7 +81,7 @@ modifier owned by a different `EventModified<T>`.
 public class Enemy : MonoBehaviour {
     public EventModified<DamageEvent> Damage = new(new DebounceEventModifier { QuietPeriod = 0.2f });
     void Awake() => Damage.Settled += e => Debug.Log(e.Amount);
-    void Update() => Damage.Tick();          // owner ticks — once per frame, per field
+    void Update() => Damage.Update();      // owner advances — once per frame, per field
 }
 
 // 2. ...or serialize the pipeline and build the wrapper at runtime (Gun.cs pattern —
@@ -194,7 +194,7 @@ the authoring contract: concrete, non-generic, `[Serializable]`, parameterless c
 (discovered via `TypeCache`, filter in `EventModifiedDrawer.GetAddableModifierTypes`).
 The native list's own "+" inserts a *null* managed reference — still prefer the Add
 menu, but nulls are **tolerated at runtime**: every pipeline walk (Post start, Continue
-next-hop, Tick) skips them, the inspector shows them as "Null" (list label and live
+next-hop, Update) skips them, the inspector shows them as "Null" (list label and live
 counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nulls are data.
 
 ## Semantics agents must not break
@@ -205,9 +205,11 @@ counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nul
   structural. Re-entrant `Post` from a `Settled`/`OnSettle` handler **throws**
   (depth guard). Cross-frame feedback (handler posting later, on its own) is allowed —
   infinite loops there are caller error.
-- **Tick contract:** owners tick every field once per frame, from `Update()` (not
-  FixedUpdate — handles read `Time.deltaTime`/`Time.time`). Double-ticking a field is
-  safe (per-handle frame guard); not ticking stalls handles silently.
+- **Update contract:** owners advance every field once per frame by calling
+  `field.Update()` from their MonoBehaviour `Update` (not FixedUpdate — handles read
+  `Time.deltaTime`/`Time.time`). Double-updating a field is safe (per-handle frame
+  guard); not updating stalls handles silently. Note the three-level rhythm: field
+  `Update()` → modifier `Tick()` → handle `Update()`.
 - **Handle lifecycle:** `Push` rents + `Enter()` (init belongs in `OnEnter` — handles are
   pooled; `Reset()` runs on pool return); each `Update()` at most once per frame; `true`
   → `Exit()` + pooled. `EventModifier.Reset(bool callExit = true)` (and field-level
@@ -251,7 +253,8 @@ Standalone pass (2026-08):
    alone serializes non-public fields.)
 9. **Null pipeline elements NRE'd at three walk points + the drawer** — the native list's
    "+" inserts null managed references; `Post` (first element), `Continue` (next hop)
-   and `Tick` all walked into them, and `DrawLiveCounts` called `.GetType()` on them.
+   and `Update` (the per-frame advance) all walked into them, and `DrawLiveCounts`
+   called `.GetType()` on them.
    Fixed: nulls are skipped at every walk point (`NextLiveIndex`), all-null pipelines
    settle like empty ones, `Add(null)` throws, the drawer shows "Null" entries, and
    `EventModifier.Continue` guards the related Owner-less case (inspector mid-edit type
@@ -260,9 +263,10 @@ Standalone pass (2026-08):
 ## Known leftover issues (working list — revisit over time)
 
 - 🟡 **`Settled`/`OnSettle` subscriber exceptions are not isolated.** A throwing handler
-  propagates through `Settle ← Continue ← Update ← Tick` into the owner's `Update`,
-  interrupting the remaining pipeline mid-walk. UltEvents' `InvokeSafe` does per-listener
-  try/catch for exactly this; the C# `Settled` event doesn't. Fix: wrap `Settled?.Invoke`
+  propagates through `Settle ← Continue ← handle Update ← modifier Tick` into the
+  owner's `Update`, interrupting the remaining pipeline mid-walk. UltEvents'
+  `InvokeSafe` does per-listener try/catch for exactly this; the C# `Settled` event
+  doesn't. Fix: wrap `Settled?.Invoke`
   per-subscriber (or document `InvokeSafe` usage for `OnSettle`).
 - 🟡 **IL2CPP/AOT unverified** (bitcasts, generic instantiations, SerializeReference —
   serialization itself verified editor-side only). Device smoke test before shipping.

@@ -15,5 +15,5 @@ public partial class Enemy : MonoBehaviour
     private void Awake() =>
         Damage.Settled += e => Debug.Log($"[Enemy] took {e.Amount} (source: {(e.Source != null ? e.Source.name : "null")})");
 
-    private void Update() => Damage.Tick();
+    private void Update() => Damage.Update();
 }

@@ -47,7 +47,7 @@ public static class EventPipelinesSelfTests
         echo.Post(7);
         Check("write-then-read-settled", echo.Value == 7);
 
-        // 3. Zero-delay chain: one Tick walks the full pipeline in order.
+        // 3. Zero-delay chain: one Update walks the full pipeline in order.
         var chain = new EventModified<int>(
             new DelayEventModifier { Seconds = 0f },
             new DelayEventModifier { Seconds = 0f });
@@ -55,7 +55,7 @@ public static class EventPipelinesSelfTests
         chain.Settled += v => chainGot = v;
         chain.Post(9);
         Check("pre-tick-not-settled", chainGot == -1);
-        chain.Tick();
+        chain.Update();
         Check("chain-walks-and-settles", chainGot == 9 && chain.Value == 9);
 
         // 4. Depth guard: re-entrant Post from a Settled handler throws.
@@ -75,17 +75,17 @@ public static class EventPipelinesSelfTests
         debField.Post(2);
         debField.Post(3);
         Check("debounce-single-handle", debounce.handles.Count == 1);
-        debField.Tick();
+        debField.Update();
         Check("debounce-no-settle-in-window", settles == 0);
         Check("debounce-value-unchanged", debField.Value.Equals(default(int)));
 
-        // 6. Repeat: one Tick emits exactly the first shot; handle stays alive.
+        // 6. Repeat: one Update emits exactly the first shot; handle stays alive.
         var repeat = new RepeatEventModifier { Count = 3, Interval = 5f };
         var repeatField = new EventModified<int>(repeat);
         var shots = 0;
         repeatField.Settled += _ => shots++;
         repeatField.Post(1);
-        repeatField.Tick();
+        repeatField.Update();
         Check("repeat-first-shot-only", shots == 1 && repeat.handles.Count == 1);
 
         // 7. UltEvent terminal + code terminal both fire on settle.
@@ -101,14 +101,14 @@ public static class EventPipelinesSelfTests
         var sureGot = -1;
         sure.Settled += v => sureGot = v;
         sure.Post(5);
-        sure.Tick();
+        sure.Update();
         Check("chance-p1-always-passes", sureGot == 5 && sure.Value == 5);
 
         var never = new EventModified<int>(new ChanceEventModifier { Probability = 0f });
         var neverGot = -1;
         never.Settled += v => neverGot = v;
         never.Post(5);
-        never.Tick();
+        never.Update();
         Check("chance-p0-always-consumes", neverGot == -1 && never.Value.Equals(default(int)));
 
         // 9. MinHold while held below minimum: episode alive, nothing settles
@@ -118,7 +118,7 @@ public static class EventPipelinesSelfTests
         var holdSettles = 0;
         holdField.Settled += _ => holdSettles++;
         holdField.Post(1);
-        holdField.Tick();
+        holdField.Update();
         Check("minhold-holding-no-settle", holdSettles == 0 && minHold.handles.Count == 1);
 
         // 10. Null pipeline elements (inspector "+" inserts) are skipped at every walk
@@ -129,7 +129,7 @@ public static class EventPipelinesSelfTests
         var nullWalkSettled = false;
         withNulls.Settled += _ => nullWalkSettled = true;
         withNulls.Post(3);
-        withNulls.Tick();
+        withNulls.Update();
         Check("nulls-skipped-by-walk", !nullWalkSettled && withNulls.DelayHandles == 1);
 
         // 11. All-null pipeline behaves like an empty one — settles immediately.
@@ -152,9 +152,9 @@ public static class EventPipelinesSelfTests
         var resetSettled = false;
         resetField.Settled += _ => resetSettled = true;
         resetField.Post(1);
-        resetField.Tick();
+        resetField.Update();
         resetField.Reset();
-        resetField.Tick();
+        resetField.Update();
         Check("reset-kills-pending-handles", !resetSettled && resetDelay.handles.Count == 0);
 
         // 14. Reset(callExit): graceful runs OnExit per handle; hard abort skips it.
@@ -172,7 +172,7 @@ public static class EventPipelinesSelfTests
         var nullReset = new NullInjectField(new DelayEventModifier { Seconds = 5f });
         nullReset.InjectNull(0);
         nullReset.Post(1);
-        nullReset.Tick();
+        nullReset.Update();
         nullReset.Reset();
         Check("reset-skips-nulls", nullReset.DelayHandles == 0);
 
@@ -184,7 +184,7 @@ public static class EventPipelinesSelfTests
         var reuseGot = -1;
         reuseField.Settled += v => reuseGot = v;
         reuseField.Post(9);
-        reuseField.Tick();
+        reuseField.Update();
         Check("post-after-reset-works", reuseGot == 9 && reuseField.Value == 9);
 
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
