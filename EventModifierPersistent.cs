@@ -1,3 +1,5 @@
+using System;
+
 namespace EventSystem2
 {
     /// <summary>
@@ -28,6 +30,7 @@ namespace EventSystem2
     /// Cross-event state without a payload (counters, last-accepted time) still belongs
     /// on plain modifier fields; this base is for when you need history + the latest payload.
     /// </summary>
+    [Serializable]
     public abstract class EventModifierPersistent<TModifier, THandle> : EventModifier<THandle>
         where TModifier : EventModifierPersistent<TModifier, THandle>
         where THandle : PersistentHandle<TModifier>, new()

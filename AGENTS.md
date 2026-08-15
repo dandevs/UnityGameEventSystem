@@ -86,7 +86,10 @@ included — and `[SerializeReference]` alone suffices on the protected `_pipeli
 `[SerializeField]` needed on non-public fields). The inspector draws it through
 `EventModifiedDrawer`; the pipeline list uses Unity's native managed-reference picker.
 Deserialization rebinds `modifier.Owner` via `ISerializationCallbackReceiver`. SaintsField's
-`[SaintsSerialized]` also works but is not required for the direct route.
+`[SaintsSerialized]` also works but is not required for the direct route. Unity 6 requires
+every type in a serialized modifier's inheritance chain to carry `[Serializable]` — all
+pipeline base classes do (`EventModifier`, `EventModifier<>`, `EventModifierPersistent<,>`);
+keep it that way on any new base, or Unity warns per serialized instance.
 
 ## Writing modifiers
 
