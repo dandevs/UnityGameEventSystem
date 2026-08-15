@@ -46,7 +46,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
-| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, TypeCache-discovered Add Modifier menu |
+| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Scripts/Modifiers/*` | Concrete modifiers (`Delay`, `Repeat`, `Burst`, `DamageOverTime` typed; `Debounce`, `Throttle` persistent) + `DamageEvent`, demo owners (`Gun`, `Enemy`) |
 | `Scripts/Modifiers/Editor/` | `EventSystem2SelfTests` (also Tools/EventSystem2 menu) |
 

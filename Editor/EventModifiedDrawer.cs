@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using EventSystem2;
 using UnityEditor;
+using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
 /// <summary>
@@ -110,20 +111,78 @@ public class EventModifiedDrawer : PropertyDrawer {
         EditorGUI.LabelField(rect, counts.ToString().TrimEnd(), EditorStyles.miniLabel);
     }
 
-    private static void OpenAddMenu(Rect dropdownRect, SerializedProperty pipeline) {
-        var menu = new GenericMenu();
-        var found = false;
+    private static void OpenAddMenu(Rect dropdownRect, SerializedProperty pipeline) =>
+        new ModifierDropdown(pipeline).Show(dropdownRect);
 
-        foreach (var type in GetAddableModifierTypes()) {
-            found = true;
-            menu.AddItem(new GUIContent(ObjectNames.NicifyVariableName(type.Name)), false,
-                () => AddModifier(pipeline, type));
+    /// <summary>Searchable, keyboard-navigable picker (Unity's own dropdown style), grouped by pattern.</summary>
+    private class ModifierDropdown : AdvancedDropdown {
+        private readonly SerializedProperty _pipeline;
+
+        private static readonly AdvancedDropdownState State = new();   // remembers expansion between opens
+
+        public ModifierDropdown(SerializedProperty pipeline) : base(State) => _pipeline = pipeline;
+
+        protected override AdvancedDropdownItem BuildRoot() {
+            var root = new AdvancedDropdownItem("Add Modifier");
+            var perEvent = new AdvancedDropdownItem("Per-Event");
+            var stream = new AdvancedDropdownItem("Stream (Persistent)");
+
+            foreach (var type in GetAddableModifierTypes()) {
+                var item = new ModifierItem(type, LabelFor(type));
+
+                if (IsStreamModifier(type))
+                    stream.AddChild(item);
+                else
+                    perEvent.AddChild(item);
+            }
+
+            if (perEvent.childList.Count > 0) root.AddChild(perEvent);
+            if (stream.childList.Count > 0) root.AddChild(stream);
+
+            if (root.childList.Count == 0)
+                root.AddChild(new AdvancedDropdownItem("No concrete EventModifier types found") { enabled = false });
+
+            return root;
         }
 
-        if (!found)
-            menu.AddDisabledItem(new GUIContent("No concrete EventModifier types found"));
+        /// <summary>
+        /// True if the modifier derives from EventModifierPersistent&lt;,&gt;. Deliberately a base-chain
+        /// walk: open-generic IsAssignableFrom returns false on this runtime (Unity 6 / Core semantics).
+        /// </summary>
+        private static bool IsStreamModifier(Type type) {
+            for (var baseType = type.BaseType; baseType != null; baseType = baseType.BaseType)
+                if (baseType.IsGenericType && baseType.GetGenericTypeDefinition() == typeof(EventModifierPersistent<,>))
+                    return true;
 
-        menu.DropDown(dropdownRect);
+            return false;
+        }
+
+        protected override void ItemSelected(AdvancedDropdownItem item) {
+            if (item is ModifierItem modifier)
+                AddModifier(_pipeline, modifier.Type);
+        }
+
+        /// <summary>
+        /// Carries the payload type. AdvancedDropdownItem.id is unusable for lookups — AddChild
+        /// rewrites child ids internally — so the type travels on a subclass instead.
+        /// </summary>
+        private class ModifierItem : AdvancedDropdownItem {
+            public readonly Type Type;
+
+            public ModifierItem(Type type, string label) : base(label) => Type = type;
+        }
+
+        /// <summary>"DelayEventModifier" → "Delay". Full type name stays greppable in the codebase.</summary>
+        private static string LabelFor(Type type) {
+            var name = type.Name;
+
+            if (name.EndsWith("EventModifier", StringComparison.Ordinal))
+                name = name[..^"EventModifier".Length];
+            else if (name.EndsWith("Modifier", StringComparison.Ordinal))
+                name = name[..^"Modifier".Length];
+
+            return ObjectNames.NicifyVariableName(name);
+        }
     }
 
     /// <summary>
