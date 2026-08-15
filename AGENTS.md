@@ -1,4 +1,4 @@
-# EventSystem2 — AGENTS.md
+# EventPipelines — AGENTS.md
 
 Field-based event pipeline system for Unity. An `EventModified<T>` field owns an ordered
 pipeline of plain-class modifiers; writing the field (`.Value` / `.Post()`) enters the
@@ -12,7 +12,7 @@ REMOVED. Stale references to it are dead — do not resurrect them. The six hub-
 fixes carried forward into the new owner code (chain walk, fall-through, pool reset).
 
 **2026-08 builtin library:** the concrete modifiers + `DamageEvent` moved from
-`Scripts/Modifiers/` into `Plugins/EventSystem2/Modifiers/` (namespace `EventSystem2`),
+`Scripts/Modifiers/` into `Plugins/EventPipelines/Modifiers/` (namespace `EventPipelines`),
 joined by `ChanceEventModifier` and `MinHoldEventModifier`. Managed references
 serialized before the move (assembly + namespace changed) were deliberately orphaned —
 no `[MovedFrom]`. `Gun`/`Enemy` remain game-side demos in `Scripts/Modifiers/`.
@@ -36,7 +36,7 @@ tooling + tests). Plugin `Editor/` (and `Tests/Editor/`) compile to
 *Assembly-CSharp-Editor-firstpass*, which sees firstpass types but **CANNOT see
 Assembly-CSharp** — never reference game-side types (`Gun`, `Enemy`) from plugin
 editor code. Assembly-CSharp sees the plugin fine (game code just adds
-`using EventSystem2;`).
+`using EventPipelines;`).
 
 ## Architecture
 
@@ -56,11 +56,11 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventModifier.cs` | Plain `EventModifier` (Push/Tick abstract, Owner, Continue) + `EventModifier<THandle>` (rent/tick/retire handles) |
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
-| `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
+| `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null"); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
-| `Modifiers/*` | Builtin modifier library, namespace `EventSystem2` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
-| `Tests/Editor/EventSystem2SelfTests.cs` | EditMode self-tests (13, also Tools/EventSystem2 menu, auto-run on load) |
+| `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (13, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -107,7 +107,7 @@ keep it that way on any new base, or Unity warns per serialized instance.
 ## Writing modifiers
 
 Modifiers are plain `[Serializable]` classes — builtins live in the plugin's
-`Modifiers/` folder (namespace `EventSystem2`); project-specific ones may live
+`Modifiers/` folder (namespace `EventPipelines`); project-specific ones may live
 game-side in `Scripts/Modifiers/` (they'll still show in the Add menu). Three
 patterns; pick by where the state lives (see Semantics → State homes). Reference
 implementations exist for all three — copy the closest one.

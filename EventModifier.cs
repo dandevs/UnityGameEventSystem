@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace EventSystem2 {
+namespace EventPipelines {
     /// <summary>
     /// Field-based chain node. Plain class — lives inside an EventModified&lt;T&gt; pipeline
     /// and is ticked by the pipeline's Tick(). Owner is assigned at registration;

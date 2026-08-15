@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace EventSystem2 {
+namespace EventPipelines {
     /// <summary>
     /// Rx-style throttle: emits the first event immediately (next update), then ignores
     /// events for Interval seconds; if events arrived during the window, emits the LATEST

@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
-namespace EventSystem2 {
+namespace EventPipelines {
     public abstract class EventHandle {
         private static readonly Dictionary<Type, Stack<EventHandle>> handlePools = new();
         protected int frameLastUpdated = -1;

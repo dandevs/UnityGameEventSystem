@@ -1,6 +1,6 @@
 using System;
 
-namespace EventSystem2
+namespace EventPipelines
 {
     /// <summary>
     /// Handle base for stream (persistent) modifiers: one live handle per episode.

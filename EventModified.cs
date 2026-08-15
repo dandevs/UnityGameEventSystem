@@ -4,7 +4,7 @@ using UltEvents;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
-namespace EventSystem2 {
+namespace EventPipelines {
     /// <summary>
     /// Non-generic pipeline owner: registration, chain walking, ticking.
     /// Continue resolves the next modifier in the pipeline; the last Continue settles.
