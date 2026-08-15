@@ -13,7 +13,7 @@ using UnityEngine;
 /// since the builtin modifiers are plugin types too. Do NOT reference game-side types
 /// (Gun, Enemy) here: Editor-firstpass cannot see Assembly-CSharp.
 /// Timing-heavy behavior (multi-frame bursts, real delays, hold-release) is NOT covered
-/// here — these tests only pin the semantics reachable within a single frame/tick.
+/// here — these tests only pin the semantics reachable within a single frame/update.
 /// </summary>
 public static class EventPipelinesSelfTests
 {
@@ -54,7 +54,7 @@ public static class EventPipelinesSelfTests
         var chainGot = -1;
         chain.Settled += v => chainGot = v;
         chain.Post(9);
-        Check("pre-tick-not-settled", chainGot == -1);
+        Check("pre-update-not-settled", chainGot == -1);
         chain.Update();
         Check("chain-walks-and-settles", chainGot == 9 && chain.Value == 9);
 
@@ -112,7 +112,7 @@ public static class EventPipelinesSelfTests
         Check("chance-p0-always-consumes", neverGot == -1 && never.Value.Equals(default(int)));
 
         // 9. MinHold while held below minimum: episode alive, nothing settles
-        //    (same-frame pulse + tick; release/threshold paths need frame advance).
+        //    (same-frame pulse + update; release/threshold paths need frame advance).
         var minHold = new MinHoldEventModifier { MinimumSeconds = 5f };
         var holdField = new EventModified<int>(minHold);
         var holdSettles = 0;
@@ -122,7 +122,7 @@ public static class EventPipelinesSelfTests
         Check("minhold-holding-no-settle", holdSettles == 0 && minHold.handles.Count == 1);
 
         // 10. Null pipeline elements (inspector "+" inserts) are skipped at every walk
-        //     point — [null, delay, null] posts into the delay and ticks without NRE.
+        //     point — [null, delay, null] posts into the delay and updates without NRE.
         var withNulls = new NullInjectField(new DelayEventModifier { Seconds = 5f });
         withNulls.InjectNull(0);                       // before the delay
         withNulls.InjectNull(int.MaxValue);            // after the delay

@@ -8,7 +8,7 @@ namespace EventPipelines {
     /// the episode survives only while pulses keep arriving on new frames. Once the
     /// hold has lasted MinimumSeconds (measured in Time.timeAsDouble), the LATEST
     /// payload continues exactly once. Releasing early consumes the event — it never
-    /// settles. Post-then-tick within the same frame is the expected owner order.
+    /// settles. Post-then-update within the same frame is the expected owner order.
     /// </summary>
     [Serializable]
     public class MinHoldEventModifier

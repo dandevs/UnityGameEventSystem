@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace EventPipelines {
     /// <summary>
-    /// Non-generic pipeline owner: registration, chain walking, ticking.
+    /// Non-generic pipeline owner: registration, chain walking, per-frame advancing.
     /// Continue resolves the next modifier in the pipeline; the last Continue settles.
     /// </summary>
     [Serializable]
@@ -27,7 +27,7 @@ namespace EventPipelines {
         /// </summary>
         public void Update() {
             for (var i = 0; i < _pipeline.Count; i++)
-                _pipeline[i]?.Tick();
+                _pipeline[i]?.Update();
         }
 
         /// <summary>

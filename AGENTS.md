@@ -53,7 +53,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | File | Contents |
 |---|---|
 | `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Update) + non-generic base (pipeline, chain walk) |
-| `EventModifier.cs` | Plain `EventModifier` (Push/Tick abstract, Owner, Continue, Reset-abort) + `EventModifier<THandle>` (rent/tick/retire handles, drain-on-Reset) |
+| `EventModifier.cs` | Plain `EventModifier` (Push/Update abstract, Owner, Continue, Reset-abort) + `EventModifier<THandle>` (rent/update/retire handles, drain-on-Reset) |
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
@@ -208,8 +208,10 @@ counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nul
 - **Update contract:** owners advance every field once per frame by calling
   `field.Update()` from their MonoBehaviour `Update` (not FixedUpdate — handles read
   `Time.deltaTime`/`Time.time`). Double-updating a field is safe (per-handle frame
-  guard); not updating stalls handles silently. Note the three-level rhythm: field
-  `Update()` → modifier `Tick()` → handle `Update()`.
+  guard); not updating stalls handles silently. The per-frame advance fans out through
+  three layers, all named `Update()` — disambiguate by receiver: `field.Update()`
+  (owner-facing, void) → each modifier's `Update()` (void, advances its handles) →
+  each live handle's `Update()` (bool, true = retire).
 - **Handle lifecycle:** `Push` rents + `Enter()` (init belongs in `OnEnter` — handles are
   pooled; `Reset()` runs on pool return); each `Update()` at most once per frame; `true`
   → `Exit()` + pooled. `EventModifier.Reset(bool callExit = true)` (and field-level
@@ -263,7 +265,7 @@ Standalone pass (2026-08):
 ## Known leftover issues (working list — revisit over time)
 
 - 🟡 **`Settled`/`OnSettle` subscriber exceptions are not isolated.** A throwing handler
-  propagates through `Settle ← Continue ← handle Update ← modifier Tick` into the
+  propagates through `Settle ← Continue ← handle Update ← modifier Update` into the
   owner's `Update`, interrupting the remaining pipeline mid-walk. UltEvents'
   `InvokeSafe` does per-listener try/catch for exactly this; the C# `Settled` event
   doesn't. Fix: wrap `Settled?.Invoke`
