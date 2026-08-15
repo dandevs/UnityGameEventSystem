@@ -251,7 +251,28 @@ public static class EventPipelinesSelfTests
         cooldownField.Post(4);
         Check("cooldown-reset-rearms", cooldownShots == 2);
 
-        // 25. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
+        // 25. Tap first press fires immediately (fresh press after silence).
+        var tap = new TapEventModifier { Unit = TapUnit.Frames, Frames = 10 };
+        var tapField = new EventModified<int>(tap);
+        var tapShots = 0;
+        tapField.Settled += _ => tapShots++;
+        tapField.Post(1);
+        Check("tap-first-press-fires", tapShots == 1);
+
+        // 26. Tap absorbs a held trigger: every-call stamping mutes same-frame spam
+        //     (re-tap after N silent frames needs frame advance — PlayMode, see AGENTS).
+        tapField.Post(2);
+        tapField.Post(3);
+        tapField.Update();
+        tapField.Post(4);
+        Check("tap-held-absorbed", tapShots == 1);
+
+        // 27. Tap Reset re-arms: fires again in the same frame after Reset.
+        tapField.Reset();
+        tapField.Post(5);
+        Check("tap-reset-rearms", tapShots == 2);
+
+        // 28. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
         var burstRepeat = new RepeatEventModifier { Count = 4, Interval = 0f };
         var burstField = new EventModified<int>(burstRepeat);
         var burstShots = 0;
