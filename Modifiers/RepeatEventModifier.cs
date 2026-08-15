@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Continues any event Count times, Interval seconds apart, then finishes.
     /// Interval &lt;= 0 emits ALL Count Continues immediately, in one Update (burst

@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Per-event probability gate: each incoming event passes with Probability chance,
     /// otherwise it is consumed (it never settles). Independent roll per event —

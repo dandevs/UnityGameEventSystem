@@ -4,8 +4,10 @@ using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
-namespace EventPipelines {
-    public abstract class EventHandle {
+namespace EventPipelines
+{
+    public abstract class EventHandle
+    {
         private static readonly Dictionary<Type, Stack<EventHandle>> handlePools = new();
         protected int frameLastUpdated = -1;
         protected virtual Type eventType => typeof(object);
@@ -15,14 +17,16 @@ namespace EventPipelines {
         public abstract bool Update();
         public virtual void Reset() => frameLastUpdated = -1;
 
-        protected virtual void OnEnter() {}
-        protected virtual void OnExit() {}
+        protected virtual void OnEnter() { }
+        protected virtual void OnExit() { }
         protected abstract bool OnUpdate<T>(ref T @event);
 
         public abstract bool Initialize<T>(T @event, EventModifier modifier);
 
-        public bool IsType<TSource, TTarget>(TSource @in, out TTarget @out, out Func<TTarget, TSource> recast) {
-            if (typeof(TTarget).IsAssignableFrom(typeof(TSource))) {
+        public bool IsType<TSource, TTarget>(TSource @in, out TTarget @out, out Func<TTarget, TSource> recast)
+        {
+            if (typeof(TTarget).IsAssignableFrom(typeof(TSource)))
+            {
                 @out = UnsafeUtility.As<TSource, TTarget>(ref @in);
                 recast = static (TTarget value) => UnsafeUtility.As<TTarget, TSource>(ref value);
                 return true;
@@ -33,40 +37,46 @@ namespace EventPipelines {
             return false;
         }
 
-        public static T GetHandle<T>() where T : EventHandle, new() {
+        public static T GetHandle<T>() where T : EventHandle, new()
+        {
             var type = typeof(T);
 
-            if (!handlePools.TryGetValue(type, out var pool)) 
+            if (!handlePools.TryGetValue(type, out var pool))
                 handlePools[type] = pool = new Stack<EventHandle>();
 
             return pool.TryPop(out var handle) ? (T)handle : new T();
         }
 
-        public static void ReturnHandle(EventHandle handle) {
+        public static void ReturnHandle(EventHandle handle)
+        {
             handle.Reset();
 
             var type = handle.GetType();
 
-            if (!handlePools.TryGetValue(type, out var pool)) {
+            if (!handlePools.TryGetValue(type, out var pool))
+            {
                 pool = new Stack<EventHandle>();
                 handlePools[type] = pool;
             }
 
             pool.Push(handle);
         }
-        
+
         [Serializable]
-        public abstract class GenericEventHolder {
+        public abstract class GenericEventHolder
+        {
             public abstract bool Update(EventHandle handle);
         }
-        
+
         [Serializable]
-        public class GenericEventHolder<T> : GenericEventHolder {
+        public class GenericEventHolder<T> : GenericEventHolder
+        {
             private static readonly ConditionalWeakTable<EventHandle, GenericEventHolder<T>> cache = new();
             public T @event;
 
-            public static GenericEventHolder<T> Get(EventHandle handle) {
-                if (cache.TryGetValue(handle, out var helper)) 
+            public static GenericEventHolder<T> Get(EventHandle handle)
+            {
+                if (cache.TryGetValue(handle, out var helper))
                     return helper;
 
                 helper = new();
@@ -74,21 +84,25 @@ namespace EventPipelines {
                 return helper;
             }
 
-            public override bool Update(EventHandle handle) {
+            public override bool Update(EventHandle handle)
+            {
                 return handle.OnUpdate(ref @event);
             }
         }
     }
-    
+
     //------------------------------------------------------------------------------------------------------------------
 
-    public abstract class EventHandle<TModifier> : EventHandle where TModifier : EventModifier {
+    public abstract class EventHandle<TModifier> : EventHandle where TModifier : EventModifier
+    {
         public TModifier modifier;
 
         private GenericEventHolder genericHelper;
 
-        public override bool Initialize<T>(T @event, EventModifier modifier) {
-            if (modifier is not TModifier tmodifier) {
+        public override bool Initialize<T>(T @event, EventModifier modifier)
+        {
+            if (modifier is not TModifier tmodifier)
+            {
                 Debug.LogWarning($"Modifier {typeof(TModifier)} expected, but {modifier.GetType()} received.");
                 return false;
             }
@@ -102,7 +116,8 @@ namespace EventPipelines {
             return true;
         }
 
-        public override void Reset() {
+        public override void Reset()
+        {
             modifier = null;
             genericHelper = null;
             base.Reset();
@@ -113,10 +128,12 @@ namespace EventPipelines {
         public sealed override void Enter() => OnEnter();
         public sealed override void Exit() => OnExit();
 
-        public override bool Update() {
+        public override bool Update()
+        {
             var frame = Time.frameCount;
 
-            if (frameLastUpdated != frame) {
+            if (frameLastUpdated != frame)
+            {
                 frameLastUpdated = frame;
                 return genericHelper.Update(this);
             }
@@ -124,25 +141,30 @@ namespace EventPipelines {
                 return false;
         }
 
-        protected void Continue<T>(in T @event) {
+        protected void Continue<T>(in T @event)
+        {
             modifier.Continue(in @event);
         }
     }
 
     //------------------------------------------------------------------------------------------------------------------
 
-    public abstract class EventHandle<TModifier, TEvent> : EventHandle where TModifier : EventModifier {
+    public abstract class EventHandle<TModifier, TEvent> : EventHandle where TModifier : EventModifier
+    {
         public TModifier modifier;
 
         public TEvent @event;
 
-        public override bool Initialize<T>(T @event, EventModifier modifier) {
-            if (modifier is not TModifier tmodifier) {
+        public override bool Initialize<T>(T @event, EventModifier modifier)
+        {
+            if (modifier is not TModifier tmodifier)
+            {
                 Debug.LogWarning($"Modifier {typeof(TModifier)} expected, but {modifier.GetType()} received.");
                 return false;
             }
 
-            if (!typeof(TEvent).IsAssignableFrom(typeof(T))) {
+            if (!typeof(TEvent).IsAssignableFrom(typeof(T)))
+            {
                 Debug.LogWarning($"Event {typeof(TEvent)} expected, but {typeof(T)} received.");
                 return false;
             }
@@ -153,7 +175,8 @@ namespace EventPipelines {
             return true;
         }
 
-        public override void Reset() {
+        public override void Reset()
+        {
             modifier = null;
             @event = default;
             base.Reset();
@@ -162,10 +185,12 @@ namespace EventPipelines {
         public sealed override void Enter() => OnEnter();
         public sealed override void Exit() => OnExit();
 
-        public override bool Update() {
+        public override bool Update()
+        {
             var frame = Time.frameCount;
 
-            if (frameLastUpdated != frame) {
+            if (frameLastUpdated != frame)
+            {
                 frameLastUpdated = frame;
                 return OnUpdate(ref @event);
             }
@@ -176,7 +201,8 @@ namespace EventPipelines {
         protected sealed override bool OnUpdate<T>(ref T @event) => true;
         protected abstract bool OnUpdate(ref TEvent @event);
 
-        protected void Continue(in TEvent @event) {
+        protected void Continue(in TEvent @event)
+        {
             modifier.Continue(in @event);
         }
     }

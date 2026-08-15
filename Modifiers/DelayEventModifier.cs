@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Holds any event for N seconds, then passes it on unchanged.
     /// Event-agnostic — uses the trampoline handle, works for every event type.

@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Rx-style throttle: emits the first event immediately (next update), then ignores
     /// events for Interval seconds; if events arrived during the window, emits the LATEST
@@ -19,7 +20,8 @@ namespace EventPipelines {
             private bool _emittedLeading;
             private bool _pending;
 
-            protected override void OnEnter() {
+            protected override void OnEnter()
+            {
                 _windowEnd = Time.time + modifier.Interval;
                 _emittedLeading = false;
                 _pending = false;
@@ -27,8 +29,10 @@ namespace EventPipelines {
 
             protected override void OnPulse<T>(in T @event) => _pending = true;
 
-            protected override bool OnUpdate<T>(ref T @event) {
-                if (!_emittedLeading) {                    // leading edge: emit right away
+            protected override bool OnUpdate<T>(ref T @event)
+            {
+                if (!_emittedLeading)
+                {                    // leading edge: emit right away
                     _emittedLeading = true;
                     _windowEnd = Time.time + modifier.Interval;
                     Continue(in @event);
@@ -38,7 +42,8 @@ namespace EventPipelines {
                 if (Time.time < _windowEnd)
                     return false;
 
-                if (_pending) {                            // trailing-latest at window end
+                if (_pending)
+                {                            // trailing-latest at window end
                     _pending = false;
                     _windowEnd = Time.time + modifier.Interval;
                     Continue(in @event);

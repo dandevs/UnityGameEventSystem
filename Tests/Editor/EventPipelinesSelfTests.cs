@@ -269,7 +269,8 @@ public static class EventPipelinesSelfTests
     /// Test-only subclass: protected _pipeline access simulates inspector-inserted nulls
     /// (which bypass Add() exactly like deserialization does).
     /// </summary>
-    private class NullInjectField : EventModified<int> {
+    private class NullInjectField : EventModified<int>
+    {
         private readonly DelayEventModifier _delay;
 
         public NullInjectField() { }
@@ -286,10 +287,12 @@ public static class EventPipelinesSelfTests
     /// Test-only observation modifier: handle never retires on its own, Enter/Exit are
     /// counted statically. Deliberately NOT [Serializable] — keeps it out of the Add menu.
     /// </summary>
-    private class SpyEventModifier : EventModifier<SpyEventModifier.Handle> {
+    private class SpyEventModifier : EventModifier<SpyEventModifier.Handle>
+    {
         public static int Enters, Exits;
 
-        public class Handle : EventHandle<SpyEventModifier> {
+        public class Handle : EventHandle<SpyEventModifier>
+        {
             protected override void OnEnter() => Enters++;
             protected override void OnExit() => Exits++;
             protected override bool OnUpdate<T>(ref T @event) => false;   // stays alive until Reset

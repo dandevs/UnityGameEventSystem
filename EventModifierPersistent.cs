@@ -12,7 +12,8 @@ namespace EventPipelines
     public abstract class PersistentHandle<TModifier> : EventHandle<TModifier>
         where TModifier : EventModifier
     {
-        public void Pulse<T>(in T @event) {
+        public void Pulse<T>(in T @event)
+        {
             // Re-Initialize = overwrite the trampoline holder's payload; does not
             // re-run OnEnter (episode start) nor touch frameLastUpdated.
             // Cannot fail from EventModifierPersistent.Push (modifier type matches by construction).
@@ -35,8 +36,10 @@ namespace EventPipelines
         where TModifier : EventModifierPersistent<TModifier, THandle>
         where THandle : PersistentHandle<TModifier>, new()
     {
-        public override void Push<T>(in T @event) {
-            if (handles.Count > 0) {
+        public override void Push<T>(in T @event)
+        {
+            if (handles.Count > 0)
+            {
                 handles[0].Pulse(in @event);   // fold into the live handle
                 return;
             }

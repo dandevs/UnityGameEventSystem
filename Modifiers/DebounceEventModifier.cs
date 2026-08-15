@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Emits the LAST event after QuietPeriod seconds of silence; every new event
     /// during the wait resets the timer and replaces the stored payload.
@@ -19,7 +20,8 @@ namespace EventPipelines {
             protected override void OnEnter() => _lastPulse = Time.time;
             protected override void OnPulse<T>(in T @event) => _lastPulse = Time.time;
 
-            protected override bool OnUpdate<T>(ref T @event) {
+            protected override bool OnUpdate<T>(ref T @event)
+            {
                 if (Time.time - _lastPulse < modifier.QuietPeriod)
                     return false;
 

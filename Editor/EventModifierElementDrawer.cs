@@ -11,8 +11,10 @@ using UnityEngine;
 /// is fully preserved.
 /// </summary>
 [CustomPropertyDrawer(typeof(EventModifier), true)]
-public class EventModifierElementDrawer : PropertyDrawer {
-    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label) {
+public class EventModifierElementDrawer : PropertyDrawer
+{
+    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+    {
         if (label != null)
             ModifierLabels.RewriteLabel(property, label);
 
@@ -24,9 +26,11 @@ public class EventModifierElementDrawer : PropertyDrawer {
 }
 
 /// <summary>Single source of truth for modifier display names (list elements + Add dropdown).</summary>
-internal static class ModifierLabels {
+internal static class ModifierLabels
+{
     /// <summary>Rewrites label.text in place for managed-reference EventModifier elements.</summary>
-    public static void RewriteLabel(SerializedProperty property, GUIContent label) {
+    public static void RewriteLabel(SerializedProperty property, GUIContent label)
+    {
         if (property.propertyType != SerializedPropertyType.ManagedReference)
             return;
 
@@ -42,7 +46,8 @@ internal static class ModifierLabels {
     }
 
     /// <summary>"Assembly-CSharp DelayEventModifier" → "Delay".</summary>
-    public static string LabelFor(string fullTypename) {
+    public static string LabelFor(string fullTypename)
+    {
         var name = fullTypename.Substring(fullTypename.LastIndexOf(' ') + 1);   // strip assembly
         name = name.Substring(name.LastIndexOf('.') + 1);                       // strip namespace
         return Nicify(StripSuffix(name));
@@ -51,7 +56,8 @@ internal static class ModifierLabels {
     public static string LabelFor(Type type) => Nicify(StripSuffix(type.Name));
 
     /// <summary>"DelayEventModifier" → "Delay". Full type name stays greppable in the codebase.</summary>
-    private static string StripSuffix(string name) {
+    private static string StripSuffix(string name)
+    {
         if (name.EndsWith("EventModifier", StringComparison.Ordinal))
             name = name[..^"EventModifier".Length];
         else if (name.EndsWith("Modifier", StringComparison.Ordinal))

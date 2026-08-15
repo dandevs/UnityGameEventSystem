@@ -14,7 +14,8 @@ using UnityEngine;
 /// subclasses via TypeCache. Lives in the plugin (needs only plugin types + UnityEditor).
 /// </summary>
 [CustomPropertyDrawer(typeof(EventModified), true)]
-public class EventModifiedDrawer : PropertyDrawer {
+public class EventModifiedDrawer : PropertyDrawer
+{
     private static readonly GUIContent PipelineLabel = new("Pipeline");
     private static readonly GUIContent AddLabel = new("Add Modifier…");
 
@@ -26,7 +27,8 @@ public class EventModifiedDrawer : PropertyDrawer {
     private static GUIStyle CountsStyle =>
         _countsStyle ??= new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
 
-    public override float GetPropertyHeight(SerializedProperty property, GUIContent label) {
+    public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+    {
         var spacing = EditorGUIUtility.standardVerticalSpacing;
         var height = EditorGUIUtility.singleLineHeight;
 
@@ -46,7 +48,8 @@ public class EventModifiedDrawer : PropertyDrawer {
         return height + spacing + EditorGUIUtility.singleLineHeight; // Add Modifier button
     }
 
-    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label) {
+    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+    {
         var spacing = EditorGUIUtility.standardVerticalSpacing;
         var line = EditorGUIUtility.singleLineHeight;
         var live = LiveInstance(property);
@@ -60,7 +63,8 @@ public class EventModifiedDrawer : PropertyDrawer {
 
         var pipeline = property.FindPropertyRelative("_pipeline");
 
-        if (pipeline == null) {
+        if (pipeline == null)
+        {
             var msg = new Rect(position.x, position.y + line + spacing, position.width, line);
             EditorGUI.LabelField(msg, "Field is null — initialize it (new EventModified<T>(...)).",
                 EditorStyles.miniLabel);
@@ -77,7 +81,8 @@ public class EventModifiedDrawer : PropertyDrawer {
         EditorGUI.PropertyField(listRect, pipeline, PipelineLabel, true);
         EditorGUI.indentLevel--;
 
-        if (Application.isPlaying && live != null) {
+        if (Application.isPlaying && live != null)
+        {
             var countsRect = new Rect(listRect.x + EditorGUIUtility.labelWidth, y,
                 listRect.width - EditorGUIUtility.labelWidth, CountsHeight(live));
             y = countsRect.yMax + spacing;
@@ -90,7 +95,8 @@ public class EventModifiedDrawer : PropertyDrawer {
     }
 
     /// <summary>Right-aligned "Value: x" badge on the header line; returns the width it used.</summary>
-    private static float DrawValueBadge(Rect header, EventModified live) {
+    private static float DrawValueBadge(Rect header, EventModified live)
+    {
         if (!Application.isPlaying || live == null)
             return 0f;
 
@@ -105,10 +111,12 @@ public class EventModifiedDrawer : PropertyDrawer {
     /// Per-modifier live handle counts as one string (play mode only). Null elements are
     /// shown as "Null" — they are skipped at runtime, but stay visible here.
     /// </summary>
-    private static string LiveCountsText(EventModified live) {
+    private static string LiveCountsText(EventModified live)
+    {
         var counts = new StringBuilder();
 
-        foreach (var modifier in live.Pipeline) {
+        foreach (var modifier in live.Pipeline)
+        {
             counts.Append(modifier == null
                 ? "Null"
                 : $"{ModifierLabels.LabelFor(modifier.GetType())} x{modifier.LiveHandleCount}");
@@ -119,7 +127,8 @@ public class EventModifiedDrawer : PropertyDrawer {
     }
 
     /// <summary>Height for the counts block — wraps once the inspector runs out of width.</summary>
-    private static float CountsHeight(EventModified live) {
+    private static float CountsHeight(EventModified live)
+    {
         var height = CountsStyle.CalcHeight(new GUIContent(LiveCountsText(live)), CountsWidth());
         return Mathf.Max(height, EditorGUIUtility.singleLineHeight);
     }
@@ -129,7 +138,8 @@ public class EventModifiedDrawer : PropertyDrawer {
     /// the scrollbar; fallback for non-GUI contexts) so line count over-estimates —
     /// over-allocated height wastes a pixel, under-allocated height clips text.
     /// </summary>
-    private static float CountsWidth() {
+    private static float CountsWidth()
+    {
         var view = EditorGUIUtility.currentViewWidth;
         if (view <= 0f)
             view = 320f;
@@ -140,19 +150,22 @@ public class EventModifiedDrawer : PropertyDrawer {
         new ModifierDropdown(pipeline).Show(dropdownRect);
 
     /// <summary>Searchable, keyboard-navigable picker (Unity's own dropdown style), grouped by pattern.</summary>
-    private class ModifierDropdown : AdvancedDropdown {
+    private class ModifierDropdown : AdvancedDropdown
+    {
         private readonly SerializedProperty _pipeline;
 
         private static readonly AdvancedDropdownState State = new();   // remembers expansion between opens
 
         public ModifierDropdown(SerializedProperty pipeline) : base(State) => _pipeline = pipeline;
 
-        protected override AdvancedDropdownItem BuildRoot() {
+        protected override AdvancedDropdownItem BuildRoot()
+        {
             var root = new AdvancedDropdownItem("Add Modifier");
             var perEvent = new AdvancedDropdownItem("Per-Event");
             var stream = new AdvancedDropdownItem("Stream (Persistent)");
 
-            foreach (var type in GetAddableModifierTypes()) {
+            foreach (var type in GetAddableModifierTypes())
+            {
                 var item = new ModifierItem(type, LabelFor(type));
 
                 if (IsStreamModifier(type))
@@ -174,7 +187,8 @@ public class EventModifiedDrawer : PropertyDrawer {
         /// True if the modifier derives from EventModifierPersistent&lt;,&gt;. Deliberately a base-chain
         /// walk: open-generic IsAssignableFrom returns false on this runtime (Unity 6 / Core semantics).
         /// </summary>
-        private static bool IsStreamModifier(Type type) {
+        private static bool IsStreamModifier(Type type)
+        {
             for (var baseType = type.BaseType; baseType != null; baseType = baseType.BaseType)
                 if (baseType.IsGenericType && baseType.GetGenericTypeDefinition() == typeof(EventModifierPersistent<,>))
                     return true;
@@ -182,7 +196,8 @@ public class EventModifiedDrawer : PropertyDrawer {
             return false;
         }
 
-        protected override void ItemSelected(AdvancedDropdownItem item) {
+        protected override void ItemSelected(AdvancedDropdownItem item)
+        {
             if (item is ModifierItem modifier)
                 AddModifier(_pipeline, modifier.Type);
         }
@@ -191,7 +206,8 @@ public class EventModifiedDrawer : PropertyDrawer {
         /// Carries the payload type. AdvancedDropdownItem.id is unusable for lookups — AddChild
         /// rewrites child ids internally — so the type travels on a subclass instead.
         /// </summary>
-        private class ModifierItem : AdvancedDropdownItem {
+        private class ModifierItem : AdvancedDropdownItem
+        {
             public readonly Type Type;
 
             public ModifierItem(Type type, string label) : base(label) => Type = type;
@@ -218,13 +234,16 @@ public class EventModifiedDrawer : PropertyDrawer {
         && type.GetConstructor(Type.EmptyTypes) != null;
 
     /// <summary>Appends a new modifier instance to the pipeline (undo-able).</summary>
-    public static void AddModifier(SerializedProperty pipeline, Type type) {
+    public static void AddModifier(SerializedProperty pipeline, Type type)
+    {
         object instance;
 
-        try {
+        try
+        {
             instance = Activator.CreateInstance(type);
         }
-        catch (Exception e) {
+        catch (Exception e)
+        {
             Debug.LogWarning($"EventModifiedDrawer: cannot construct {type.Name} ({e.GetType().Name}) — needs a parameterless ctor.");
             return;
         }
@@ -235,7 +254,8 @@ public class EventModifiedDrawer : PropertyDrawer {
     }
 
     /// <summary>The live .NET instance behind the field (not a serialization copy) — via drawer FieldInfo.</summary>
-    private EventModified LiveInstance(SerializedProperty property) {
+    private EventModified LiveInstance(SerializedProperty property)
+    {
         var target = property.serializedObject.targetObject;
         return target != null ? fieldInfo?.GetValue(target) as EventModified : null;
     }

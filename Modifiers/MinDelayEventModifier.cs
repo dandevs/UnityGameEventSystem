@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>Unit of the minimum gate duration.</summary>
     public enum MinDelayUnit { Frames, Time }
 
@@ -33,7 +34,8 @@ namespace EventPipelines {
             private int _startFrame;
             private double _heldSince;
 
-            protected override void OnEnter() {
+            protected override void OnEnter()
+            {
                 _lastFrame = Time.frameCount;
                 _startFrame = Time.frameCount;
                 _heldSince = Time.timeAsDouble;
@@ -41,15 +43,18 @@ namespace EventPipelines {
 
             protected override void OnPulse<T>(in T @event) => _lastFrame = Time.frameCount;
 
-            protected override bool OnUpdate<T>(ref T @event) {
+            protected override bool OnUpdate<T>(ref T @event)
+            {
                 if (Time.frameCount != _lastFrame)
                     return true;        // a frame passed with no pulse — released, consume
 
-                if (modifier.Unit == MinDelayUnit.Frames) {
+                if (modifier.Unit == MinDelayUnit.Frames)
+                {
                     if (Time.frameCount - _startFrame < modifier.Frames)
                         return false;   // still held, frame minimum not reached yet
                 }
-                else {
+                else
+                {
                     if (Time.timeAsDouble - _heldSince < modifier.Seconds)
                         return false;   // still held, time minimum not reached yet
                 }

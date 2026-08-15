@@ -4,13 +4,15 @@ using UltEvents;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Non-generic pipeline owner: registration, chain walking, per-frame advancing.
     /// Continue resolves the next modifier in the pipeline; the last Continue settles.
     /// </summary>
     [Serializable]
-    public abstract class EventModified : ISerializationCallbackReceiver {
+    public abstract class EventModified : ISerializationCallbackReceiver
+    {
         [SerializeReference] protected List<EventModifier> _pipeline = new();
 
         /// <summary>Read-only view of the pipeline (editor/debug aid).</summary>
@@ -25,7 +27,8 @@ namespace EventPipelines {
         /// Advances every modifier's handles. Owners call this once per frame, per field.
         /// Null pipeline elements (inspector "+" inserts) are skipped.
         /// </summary>
-        public void Update() {
+        public void Update()
+        {
             for (var i = 0; i < _pipeline.Count; i++)
                 _pipeline[i]?.Update();
         }
@@ -35,13 +38,15 @@ namespace EventPipelines {
         /// Call when the field's context dies (holster, disable, despawn). Null pipeline
         /// elements are skipped; callExit=false skips every handle's OnExit (hard abort).
         /// </summary>
-        public void Reset(bool callExit = true) {
+        public void Reset(bool callExit = true)
+        {
             for (var i = 0; i < _pipeline.Count; i++)
                 _pipeline[i]?.Reset(callExit);
         }
 
         /// <summary>Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.</summary>
-        public void OnAfterDeserialize() {
+        public void OnAfterDeserialize()
+        {
             foreach (var modifier in _pipeline)
                 if (modifier != null)
                     modifier.Owner = this;
@@ -56,7 +61,8 @@ namespace EventPipelines {
     /// and never re-Posts (no retrigger, by structure).
     /// </summary>
     [Serializable]
-    public class EventModified<T> : EventModified {
+    public class EventModified<T> : EventModified
+    {
         /// <summary>Designer-wireable terminal. Invoked on every settle.</summary>
         public UltEvent<T> OnSettle = new();
 
@@ -76,12 +82,14 @@ namespace EventPipelines {
 
         public EventModified() { }
 
-        public EventModified(params EventModifier[] modifiers) {
+        public EventModified(params EventModifier[] modifiers)
+        {
             foreach (var modifier in modifiers)
                 Add(modifier);
         }
 
-        public EventModified<T> Add(EventModifier modifier) {
+        public EventModified<T> Add(EventModifier modifier)
+        {
             if (modifier == null)
                 throw new ArgumentNullException(nameof(modifier),
                     "Explicit nulls are a code bug — inspector-inserted nulls are tolerated, Add(null) is not.");
@@ -91,7 +99,8 @@ namespace EventPipelines {
         }
 
         /// <summary>First non-null index at or after <paramref name="from"/>; -1 if none.</summary>
-        private int NextLiveIndex(int from) {
+        private int NextLiveIndex(int from)
+        {
             for (var i = from; i < _pipeline.Count; i++)
                 if (_pipeline[i] != null)
                     return i;
@@ -99,13 +108,15 @@ namespace EventPipelines {
         }
 
         /// <summary>Enters the pipeline. Empty pipeline settles immediately (same call stack).</summary>
-        public void Post(T value) {
+        public void Post(T value)
+        {
             if (_dispatchDepth > 0)
                 throw new InvalidOperationException(
                     "EventModified<T>.Post called re-entrantly during settle — writing Value from Settled/OnSettle handlers is not allowed.");
 
             _dispatchDepth++;
-            try {
+            try
+            {
                 var start = NextLiveIndex(0);
 
                 if (start != -1)
@@ -116,10 +127,12 @@ namespace EventPipelines {
             finally { _dispatchDepth--; }
         }
 
-        internal override void Continue<T2>(in T2 @event, EventModifier from) {
+        internal override void Continue<T2>(in T2 @event, EventModifier from)
+        {
             var index = _pipeline.IndexOf(from);
 
-            if (index == -1) {
+            if (index == -1)
+            {
                 Debug.LogWarning($"({from.GetType().Name}) Modifier removed from pipeline; settling directly.");
                 var orphan = @event;
                 Settle(UnsafeUtility.As<T2, T>(ref orphan));
@@ -128,16 +141,19 @@ namespace EventPipelines {
 
             var next = NextLiveIndex(index + 1);
 
-            if (next != -1) {
+            if (next != -1)
+            {
                 _pipeline[next].Push(in @event);   // null elements are skipped, not walked into
             }
-            else {
+            else
+            {
                 var e = @event;
                 Settle(UnsafeUtility.As<T2, T>(ref e));  // T2 == T by construction (Post only accepts T)
             }
         }
 
-        private void Settle(T result) {
+        private void Settle(T result)
+        {
             _latest = result;
             OnSettle?.Invoke(result);
             Settled?.Invoke(result);

@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 
-namespace EventPipelines {
+namespace EventPipelines
+{
     /// <summary>
     /// Hold-to-qualify gate. The owner is expected to re-post the field every frame
     /// while "held" (e.g. Input.GetKey in Update) — each pulse stamps its frame, and
@@ -21,14 +22,16 @@ namespace EventPipelines {
             private int _lastFrame;
             private double _heldSince;
 
-            protected override void OnEnter() {
+            protected override void OnEnter()
+            {
                 _lastFrame = Time.frameCount;
                 _heldSince = Time.timeAsDouble;
             }
 
             protected override void OnPulse<T>(in T @event) => _lastFrame = Time.frameCount;
 
-            protected override bool OnUpdate<T>(ref T @event) {
+            protected override bool OnUpdate<T>(ref T @event)
+            {
                 if (Time.frameCount != _lastFrame)
                     return true;        // a frame passed with no pulse — released, consume
 
