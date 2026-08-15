@@ -25,11 +25,24 @@ namespace EventPipelines
         public virtual int LiveHandleCount => 0;
 
         /// <summary>
-        /// Aborts this modifier's live handles — pending events die, nothing settles.
-        /// Base is a no-op (no handles); EventModifier&lt;THandle&gt; drains them.
+        /// Aborts this modifier's live state — pending events die, nothing settles.
+        /// Non-virtual: drains live handles (ResetHandles), then runs OnReset().
         /// </summary>
-        /// <param name="callExit">True: OnExit runs per handle (graceful). False: hard abort.</param>
-        public virtual void Reset(bool callExit = true) { }
+        /// <param name="callExit">True: OnExit runs per handle (graceful). False: hard abort — OnReset still runs.</param>
+        public void Reset(bool callExit = true)
+        {
+            ResetHandles(callExit);
+            OnReset();
+        }
+
+        /// <summary>Handle drain — implemented by EventModifier&lt;THandle&gt;; base has no handles.</summary>
+        internal virtual void ResetHandles(bool callExit) { }
+
+        /// <summary>
+        /// State-hygiene hook — ALWAYS runs, including hard aborts (callExit: false);
+        /// callExit only governs handle OnExit calls. Re-arm gates/counters here.
+        /// </summary>
+        protected virtual void OnReset() { }
 
         public void Continue<T>(in T @event)
         {
@@ -92,7 +105,7 @@ namespace EventPipelines
         /// cleared BEFORE any OnExit runs — an OnExit that Posts lands on a fresh list,
         /// so reset covers exactly the handles alive at call time.
         /// </summary>
-        public override void Reset(bool callExit = true)
+        internal override void ResetHandles(bool callExit)
         {
             if (handles.Count == 0)
                 return;

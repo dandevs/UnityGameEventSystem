@@ -33,6 +33,6 @@ namespace EventPipelines
         public override void Update() { }
 
         /// <summary>Re-arms the gate (clears the count toward N).</summary>
-        public override void Reset(bool callExit = true) => _seen = 0;
+        protected override void OnReset() => _seen = 0;
     }
 }

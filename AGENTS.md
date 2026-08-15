@@ -60,7 +60,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
 | `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; counter gates (handle-less, fire at Post time): `EveryNth` (count), `Cooldown` (rate — min interval since last fire, leading edge, no trailing), `Tap` (silence — min quiet window between CALLS, every call stamps: held spam absorbed, "tap to shoot"; the inverse of Cooldown — compose `[Tap, Cooldown]` for tap-to-fire with capped rate); plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted; `MinDelay` (hold-to-qualify with units) was replaced by `Cooldown` |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (32, also Tools/EventPipelines menu, auto-run on load) |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (33, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -187,7 +187,7 @@ in Semantics before changing absorb mechanics).
   fields on a Pattern A/B modifier. References: `EveryNthEventModifier` — handle-less
   count gate; `CooldownEventModifier` — handle-less rate gate (the `MinInterval` this
   rule once hypothesized): overrides `Push` to `Continue` at Post time with the event's
-  own payload, so same-frame burst loops fire correctly, and overrides `Reset` to
+  own payload, so same-frame burst loops fire correctly, and overrides `OnReset` to
   re-arm; `Update()` is a no-op. No handle gymnastics.
 - Multi-value logic (fire N times): emit via multiple `Continue` calls across updates
   (see `Repeat` — where `Interval <= 0` bursts ALL Count emissions in a single Update),
@@ -222,10 +222,12 @@ counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nul
 - **Handle lifecycle:** `Push` rents + `Enter()` (init belongs in `OnEnter` — handles are
   pooled; `Reset()` runs on pool return); each `Update()` at most once per frame; `true`
   → `Exit()` + pooled. `EventModifier.Reset(bool callExit = true)` (and field-level
-  `EventModified.Reset`) aborts live handles outside the retire path — the handles list
-  is cleared before any `OnExit` runs (an `OnExit` that Posts lands on a fresh list);
-  `callExit: false` skips `OnExit` entirely (hard abort). Not the same thing as handle
-  `Reset()` — that one is pool hygiene.
+  `EventModified.Reset`) aborts live state outside the retire path — **non-virtual**:
+  it drains handles (`ResetHandles`, `EventModifier<THandle>` only — the handles list
+  is cleared before any `OnExit` runs, so an `OnExit` that Posts lands on a fresh list;
+  `callExit: false` skips `OnExit` entirely = hard abort) and then runs `OnReset()`
+  — the re-arm hook, **no `callExit` param, ALWAYS runs including hard aborts**.
+  Not the same thing as handle `Reset()` — that one is pool hygiene.
 - **State homes:** per-event state → handle fields; cross-event state without payload
   (counters, last-accepted time) → modifier fields; cross-event state + latest payload
   (Debounce/Throttle/coalescing) → persistent handle (one live handle per episode,

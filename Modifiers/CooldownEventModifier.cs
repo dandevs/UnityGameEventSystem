@@ -55,6 +55,6 @@ namespace EventPipelines
         public override void Update() { }
 
         /// <summary>Re-arms the gate (next post fires regardless of the last stamp).</summary>
-        public override void Reset(bool callExit = true) => _hasFired = false;
+        protected override void OnReset() => _hasFired = false;
     }
 }

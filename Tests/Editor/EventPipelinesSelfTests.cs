@@ -272,7 +272,18 @@ public static class EventPipelinesSelfTests
         tapField.Post(5);
         Check("tap-reset-rearms", tapShots == 2);
 
-        // 28. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
+        // 28. Hard abort (callExit: false) still re-arms gates — OnReset runs unconditionally.
+        var hardGate = new CooldownEventModifier { Unit = CooldownUnit.Frames, Frames = 30 };
+        var hardField = new EventModified<int>(hardGate);
+        var hardShots = 0;
+        hardField.Settled += _ => hardShots++;
+        hardField.Post(1);
+        hardField.Post(2);              // absorbed — on cooldown
+        hardField.Reset(false);         // hard abort
+        hardField.Post(3);
+        Check("hard-abort-still-rearms", hardShots == 2);
+
+        // 29. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
         var burstRepeat = new RepeatEventModifier { Count = 4, Interval = 0f };
         var burstField = new EventModified<int>(burstRepeat);
         var burstShots = 0;
