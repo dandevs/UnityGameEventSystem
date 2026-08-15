@@ -22,6 +22,10 @@ public class EventModifiedDrawer : PropertyDrawer {
     private static GUIStyle BadgeStyle =>
         _badgeStyle ??= new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleRight };
 
+    private static GUIStyle _countsStyle;
+    private static GUIStyle CountsStyle =>
+        _countsStyle ??= new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
+
     public override float GetPropertyHeight(SerializedProperty property, GUIContent label) {
         var spacing = EditorGUIUtility.standardVerticalSpacing;
         var height = EditorGUIUtility.singleLineHeight;
@@ -36,8 +40,8 @@ public class EventModifiedDrawer : PropertyDrawer {
 
         height += spacing + EditorGUI.GetPropertyHeight(pipeline, PipelineLabel, true);
 
-        if (Application.isPlaying && LiveInstance(property) != null)
-            height += spacing + EditorGUIUtility.singleLineHeight;   // live handle counts
+        if (Application.isPlaying && LiveInstance(property) is { } live)
+            height += spacing + CountsHeight(live);   // live handle counts (wraps)
 
         return height + spacing + EditorGUIUtility.singleLineHeight; // Add Modifier button
     }
@@ -75,9 +79,9 @@ public class EventModifiedDrawer : PropertyDrawer {
 
         if (Application.isPlaying && live != null) {
             var countsRect = new Rect(listRect.x + EditorGUIUtility.labelWidth, y,
-                listRect.width - EditorGUIUtility.labelWidth, line);
+                listRect.width - EditorGUIUtility.labelWidth, CountsHeight(live));
             y = countsRect.yMax + spacing;
-            DrawLiveCounts(countsRect, live);
+            GUI.Label(countsRect, LiveCountsText(live), CountsStyle);
         }
 
         var buttonRect = new Rect(position.x, y, position.width, line);
@@ -97,18 +101,39 @@ public class EventModifiedDrawer : PropertyDrawer {
         return width;
     }
 
-    /// <summary>Per-modifier live handle counts, play mode only.</summary>
-    private static void DrawLiveCounts(Rect rect, EventModified live) {
+    /// <summary>
+    /// Per-modifier live handle counts as one string (play mode only). Null elements are
+    /// shown as "Null" — they are skipped at runtime, but stay visible here.
+    /// </summary>
+    private static string LiveCountsText(EventModified live) {
         var counts = new StringBuilder();
 
         foreach (var modifier in live.Pipeline) {
-            counts.Append(modifier.GetType().Name);
-            counts.Append(" x");
-            counts.Append(modifier.LiveHandleCount);
+            counts.Append(modifier == null
+                ? "Null"
+                : $"{ModifierLabels.LabelFor(modifier.GetType())} x{modifier.LiveHandleCount}");
             counts.Append("   ");
         }
 
-        EditorGUI.LabelField(rect, counts.ToString().TrimEnd(), EditorStyles.miniLabel);
+        return counts.Length == 0 ? "no modifiers" : counts.ToString().TrimEnd();
+    }
+
+    /// <summary>Height for the counts block — wraps once the inspector runs out of width.</summary>
+    private static float CountsHeight(EventModified live) {
+        var height = CountsStyle.CalcHeight(new GUIContent(LiveCountsText(live)), CountsWidth());
+        return Mathf.Max(height, EditorGUIUtility.singleLineHeight);
+    }
+
+    /// <summary>
+    /// Width estimate for the wrap calc. Deliberately UNDER-estimates (view width includes
+    /// the scrollbar; fallback for non-GUI contexts) so line count over-estimates —
+    /// over-allocated height wastes a pixel, under-allocated height clips text.
+    /// </summary>
+    private static float CountsWidth() {
+        var view = EditorGUIUtility.currentViewWidth;
+        if (view <= 0f)
+            view = 320f;
+        return Mathf.Max(60f, view - 16f - EditorGUIUtility.labelWidth);
     }
 
     private static void OpenAddMenu(Rect dropdownRect, SerializedProperty pipeline) =>

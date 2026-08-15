@@ -5,9 +5,10 @@ using UnityEngine;
 
 /// <summary>
 /// Labels managed-reference EventModifier list elements by their concrete type
-/// ("Element 0" → "Delay") wherever they are drawn — EventModifiedDrawer's pipeline
-/// list and plain [SerializeReference] fallback lists alike. Default drawing
-/// (foldout, children, type picker, reorder) is fully preserved.
+/// ("Element 0" → "Delay", plus " · N" live handle count while playing) wherever they
+/// are drawn — EventModifiedDrawer's pipeline list and plain [SerializeReference]
+/// fallback lists alike. Default drawing (foldout, children, type picker, reorder)
+/// is fully preserved.
 /// </summary>
 [CustomPropertyDrawer(typeof(EventModifier), true)]
 public class EventModifierElementDrawer : PropertyDrawer {
@@ -32,6 +33,12 @@ internal static class ModifierLabels {
         label.text = property.managedReferenceValue == null
             ? "Null"   // native list "+" inserts null references — make them obvious
             : LabelFor(property.managedReferenceFullTypename);
+
+        // Live handle count in the element name (play mode, active handles only —
+        // edit mode has none, and a constant "· 0" would be noise).
+        if (Application.isPlaying
+            && property.managedReferenceValue is EventModifier { LiveHandleCount: > 0 } live)
+            label.text += $" · {live.LiveHandleCount}";
     }
 
     /// <summary>"Assembly-CSharp DelayEventModifier" → "Delay".</summary>

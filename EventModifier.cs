@@ -21,7 +21,15 @@ namespace EventPipelines {
         /// <summary>Live handle count — editor/debug aid (live state visualization).</summary>
         public virtual int LiveHandleCount => 0;
 
-        public void Continue<T>(in T @event) => Owner.Continue(in @event, this);
+        public void Continue<T>(in T @event) {
+            if (Owner == null) {
+                // Inspector mid-edit assignment (e.g. type picked on a null row) bypasses Add()/rebind.
+                Debug.LogWarning($"({GetType().Name}) has no owner — event consumed. Register via Add() or reload the scene.");
+                return;
+            }
+
+            Owner.Continue(in @event, this);
+        }
     }
 
     //------------------------------------------------------------------------------------------------------------------

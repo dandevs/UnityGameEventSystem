@@ -121,10 +121,52 @@ public static class EventPipelinesSelfTests
         holdField.Tick();
         Check("minhold-holding-no-settle", holdSettles == 0 && minHold.handles.Count == 1);
 
+        // 10. Null pipeline elements (inspector "+" inserts) are skipped at every walk
+        //     point — [null, delay, null] posts into the delay and ticks without NRE.
+        var withNulls = new NullInjectField(new DelayEventModifier { Seconds = 5f });
+        withNulls.InjectNull(0);                       // before the delay
+        withNulls.InjectNull(int.MaxValue);            // after the delay
+        var nullWalkSettled = false;
+        withNulls.Settled += _ => nullWalkSettled = true;
+        withNulls.Post(3);
+        withNulls.Tick();
+        Check("nulls-skipped-by-walk", !nullWalkSettled && withNulls.DelayHandles == 1);
+
+        // 11. All-null pipeline behaves like an empty one — settles immediately.
+        var allNull = new NullInjectField();
+        allNull.InjectNull(int.MaxValue);
+        var allNullGot = -1;
+        allNull.Settled += v => allNullGot = v;
+        allNull.Post(5);
+        Check("all-null-pipeline-settles", allNullGot == 5);
+
+        // 12. Add(null) is explicit API misuse — throws instead of silently tolerating.
+        var addNullThrew = false;
+        try { allNull.Add(null); }
+        catch (ArgumentNullException) { addNullThrew = true; }
+        Check("add-null-throws", addNullThrew);
+
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
         if (verbose || fail > 0)
             Debug.Log($"<color={(fail > 0 ? "red" : "green")}>{summary}</color>");
         return summary;
+    }
+
+    /// <summary>
+    /// Test-only subclass: protected _pipeline access simulates inspector-inserted nulls
+    /// (which bypass Add() exactly like deserialization does).
+    /// </summary>
+    private class NullInjectField : EventModified<int> {
+        private readonly DelayEventModifier _delay;
+
+        public NullInjectField() { }
+
+        public NullInjectField(DelayEventModifier delay) : base(delay) => _delay = delay;
+
+        public int DelayHandles => _delay?.handles.Count ?? 0;
+
+        public void InjectNull(int index) =>
+            _pipeline.Insert(index == int.MaxValue ? _pipeline.Count : index, null);
     }
 }
 #endif

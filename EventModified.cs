@@ -21,10 +21,13 @@ namespace EventPipelines {
 
         internal abstract void Continue<T>(in T @event, EventModifier from);
 
-        /// <summary>Advances every modifier's handles. Owners call this once per frame, per field.</summary>
+        /// <summary>
+        /// Advances every modifier's handles. Owners call this once per frame, per field.
+        /// Null pipeline elements (inspector "+" inserts) are skipped.
+        /// </summary>
         public void Tick() {
             for (var i = 0; i < _pipeline.Count; i++)
-                _pipeline[i].Tick();
+                _pipeline[i]?.Tick();
         }
 
         /// <summary>Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.</summary>
@@ -69,9 +72,20 @@ namespace EventPipelines {
         }
 
         public EventModified<T> Add(EventModifier modifier) {
+            if (modifier == null)
+                throw new ArgumentNullException(nameof(modifier),
+                    "Explicit nulls are a code bug — inspector-inserted nulls are tolerated, Add(null) is not.");
             modifier.Owner = this;
             _pipeline.Add(modifier);
             return this;
+        }
+
+        /// <summary>First non-null index at or after <paramref name="from"/>; -1 if none.</summary>
+        private int NextLiveIndex(int from) {
+            for (var i = from; i < _pipeline.Count; i++)
+                if (_pipeline[i] != null)
+                    return i;
+            return -1;
         }
 
         /// <summary>Enters the pipeline. Empty pipeline settles immediately (same call stack).</summary>
@@ -82,10 +96,12 @@ namespace EventPipelines {
 
             _dispatchDepth++;
             try {
-                if (_pipeline.Count > 0)
-                    _pipeline[0].Push(value);
+                var start = NextLiveIndex(0);
+
+                if (start != -1)
+                    _pipeline[start].Push(value);
                 else
-                    Settle(value);
+                    Settle(value);   // empty (or all-null) pipeline settles immediately
             }
             finally { _dispatchDepth--; }
         }
@@ -100,8 +116,10 @@ namespace EventPipelines {
                 return;
             }
 
-            if (index + 1 < _pipeline.Count) {
-                _pipeline[index + 1].Push(in @event);
+            var next = NextLiveIndex(index + 1);
+
+            if (next != -1) {
+                _pipeline[next].Push(in @event);   // null elements are skipped, not walked into
             }
             else {
                 var e = @event;

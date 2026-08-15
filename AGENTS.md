@@ -57,10 +57,10 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
-| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
-| `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null"); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
+| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
+| `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
 | `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (13, also Tools/EventPipelines menu, auto-run on load) |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (16, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -190,7 +190,10 @@ in Semantics before changing absorb mechanics).
 the inspector's **Add Modifier** menu. The menu offers exactly the modifiers that match
 the authoring contract: concrete, non-generic, `[Serializable]`, parameterless ctor
 (discovered via `TypeCache`, filter in `EventModifiedDrawer.GetAddableModifierTypes`).
-The native list's own "+" inserts a *null* managed reference — prefer the Add menu.
+The native list's own "+" inserts a *null* managed reference — still prefer the Add
+menu, but nulls are **tolerated at runtime**: every pipeline walk (Post start, Continue
+next-hop, Tick) skips them, the inspector shows them as "Null" (list label and live
+counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nulls are data.
 
 ## Semantics agents must not break
 
@@ -240,6 +243,13 @@ Standalone pass (2026-08):
    rebinds in `OnAfterDeserialize`. (Found via serialization spike. The suspected
    "pipeline silently not serialized" hypothesis was DISPROVEN — `[SerializeReference]`
    alone serializes non-public fields.)
+9. **Null pipeline elements NRE'd at three walk points + the drawer** — the native list's
+   "+" inserts null managed references; `Post` (first element), `Continue` (next hop)
+   and `Tick` all walked into them, and `DrawLiveCounts` called `.GetType()` on them.
+   Fixed: nulls are skipped at every walk point (`NextLiveIndex`), all-null pipelines
+   settle like empty ones, `Add(null)` throws, the drawer shows "Null" entries, and
+   `EventModifier.Continue` guards the related Owner-less case (inspector mid-edit type
+   assignment) with a warning + consume instead of an NRE.
 
 ## Known leftover issues (working list — revisit over time)
 
