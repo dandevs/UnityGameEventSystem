@@ -11,6 +11,12 @@ pipeline *owners* (they call `Tick()` in `Update`).
 REMOVED. Stale references to it are dead — do not resurrect them. The six hub-era bug
 fixes carried forward into the new owner code (chain walk, fall-through, pool reset).
 
+**2026-08 builtin library:** the concrete modifiers + `DamageEvent` moved from
+`Scripts/Modifiers/` into `Plugins/EventSystem2/Modifiers/` (namespace `EventSystem2`),
+joined by `ChanceEventModifier` and `MinHoldEventModifier`. Managed references
+serialized before the move (assembly + namespace changed) were deliberately orphaned —
+no `[MovedFrom]`. `Gun`/`Enemy` remain game-side demos in `Scripts/Modifiers/`.
+
 ## Dependencies
 
 - **UltEvents** — `OnSettle` terminal on `EventModified<T>`
@@ -21,11 +27,13 @@ fixes carried forward into the new owner code (chain walk, fall-through, pool re
 
 ## Assembly layout (important)
 
-`Assets/Plugins/**` compiles to **Assembly-CSharp-firstpass**; its `Editor/` subfolders
-would compile to *Editor-firstpass*, which CANNOT see `Assembly-CSharp` (where
-`Scripts/Modifiers` lives). That is why the self-tests sit in
-`Scripts/Modifiers/Editor/`, not in this folder. Keep editor tooling that references
-concrete modifiers outside the plugin.
+`Assets/Plugins/**` compiles to **Assembly-CSharp-firstpass** — the builtin modifiers
+and `DamageEvent` live there now, so the plugin is self-contained (runtime + Editor
+tooling + tests). Plugin `Editor/` (and `Tests/Editor/`) compile to
+*Assembly-CSharp-Editor-firstpass*, which sees firstpass types but **CANNOT see
+Assembly-CSharp** — never reference game-side types (`Gun`, `Enemy`) from plugin
+editor code. Assembly-CSharp sees the plugin fine (game code just adds
+`using EventSystem2;`).
 
 ## Architecture
 
@@ -48,8 +56,9 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null"); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
-| `Scripts/Modifiers/*` | Concrete modifiers (`Delay`, `Repeat`, `Burst`, `DamageOverTime` typed; `Debounce`, `Throttle` persistent) + `DamageEvent`, demo owners (`Gun`, `Enemy`) |
-| `Scripts/Modifiers/Editor/` | `EventSystem2SelfTests` (also Tools/EventSystem2 menu) |
+| `Modifiers/*` | Builtin modifier library, namespace `EventSystem2` — Pattern A: `Delay`, `Repeat`, `Burst`, `Chance`; Pattern B: `DamageOverTime`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type) |
+| `Tests/Editor/EventSystem2SelfTests.cs` | EditMode self-tests (13, also Tools/EventSystem2 menu, auto-run on load) |
+| game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
 base cannot declare a `T` field, so `EventHandle<TModifier>` parks the event in a
@@ -94,9 +103,11 @@ keep it that way on any new base, or Unity warns per serialized instance.
 
 ## Writing modifiers
 
-Modifiers are plain `[Serializable]` classes in `Scripts/Modifiers/` (outside the plugin —
-see Assembly layout). Three patterns; pick by where the state lives (see Semantics →
-State homes). Reference implementations exist for all three — copy the closest one.
+Modifiers are plain `[Serializable]` classes — builtins live in the plugin's
+`Modifiers/` folder (namespace `EventSystem2`); project-specific ones may live
+game-side in `Scripts/Modifiers/` (they'll still show in the Add menu). Three
+patterns; pick by where the state lives (see Semantics → State homes). Reference
+implementations exist for all three — copy the closest one.
 
 **Pattern A — per-event, event-agnostic** (one handle per incoming event; overlapping
 events run as independent handles = stack policy). Reference: `DelayEventModifier`.
@@ -138,7 +149,9 @@ Note: the declared `TEvent` must match the owner field's `T` exactly (same assem
 the bitcast in `Initialize` has no runtime conversion).
 
 **Pattern C — persistent / stream** (cross-event state + latest payload: debounce,
-throttle, coalescing; one live handle per episode). Reference: `DebounceEventModifier`.
+throttle, coalescing; one live handle per episode). References: `DebounceEventModifier`,
+`MinHoldEventModifier` (hold-to-qualify gate — owner re-posts every frame while held;
+frame-stamped pulses, early release consumes).
 
 ```csharp
 [Serializable]
