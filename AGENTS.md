@@ -14,9 +14,10 @@ fixes carried forward into the new owner code (chain walk, fall-through, pool re
 ## Dependencies
 
 - **UltEvents** — `OnSettle` terminal on `EventModified<T>`
-- **Odin Inspector** — drawing attributes in `EventHandle.cs`
 - **Unity.Collections** — `UnsafeUtility.As` bitcasts (no boxing on hot path)
+- **UnityEditor** (`Editor/` only) — `EventModifiedDrawer` (custom property drawer)
 - Shapes (`MonoBehaviourGizmos`) — dropped in the field rewrite
+- Odin Inspector — removed 2026-08 (standalone pass); the plugin now has zero editor-package dependencies
 
 ## Assembly layout (important)
 
@@ -45,6 +46,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
+| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts |
 | `Scripts/Modifiers/*` | Concrete modifiers (`Delay`, `Repeat`, `Burst`, `DamageOverTime` typed; `Debounce`, `Throttle` persistent) + `DamageEvent`, demo owners (`Gun`, `Enemy`) |
 | `Scripts/Modifiers/Editor/` | `EventSystem2SelfTests` (also Tools/EventSystem2 menu) |
 
@@ -78,10 +80,13 @@ public class Enemy : MonoBehaviour {
 enemy.Damage.Value = new DamageEvent(25f, attacker);
 ```
 
-Serialization note: direct `[SaintsSerialized]` on an `EventModified<DamageEvent>` field
-compiles (`SaintsField.Playa` namespace) but editor serialization of closed generics is
-**unverified** — validate with a scene instance before relying on it; the `Gun.cs`
-pattern is the known-good fallback.
+Serialization (verified 2026-08, Unity 6000.5 — SO disk round-trip via forced re-import): a
+plain `[SerializeField] EventModified<T>` field serializes natively — closed generics
+included — and `[SerializeReference]` alone suffices on the protected `_pipeline` (no
+`[SerializeField]` needed on non-public fields). The inspector draws it through
+`EventModifiedDrawer`; the pipeline list uses Unity's native managed-reference picker.
+Deserialization rebinds `modifier.Owner` via `ISerializationCallbackReceiver`. SaintsField's
+`[SaintsSerialized]` also works but is not required for the direct route.
 
 ## Writing modifiers
 
@@ -203,6 +208,14 @@ Field era (2026-08 rewrite):
    always a no-op; latent from the original repo, invisible while defaults aligned with
    zero-init. Now `Enter()/Exit()` call `OnEnter()/OnExit()` virtually in both variants.
 
+Standalone pass (2026-08):
+8. **`Owner` never rebound after deserialization** — deserialization bypasses `Add()`, so
+   every modifier in a serialized pipeline had `Owner == null` → NRE on the first
+   `Continue`. Fixed: `EventModified` implements `ISerializationCallbackReceiver` and
+   rebinds in `OnAfterDeserialize`. (Found via serialization spike. The suspected
+   "pipeline silently not serialized" hypothesis was DISPROVEN — `[SerializeReference]`
+   alone serializes non-public fields.)
+
 ## Known leftover issues (working list — revisit over time)
 
 - 🟡 **`Settled`/`OnSettle` subscriber exceptions are not isolated.** A throwing handler
@@ -210,17 +223,12 @@ Field era (2026-08 rewrite):
   interrupting the remaining pipeline mid-walk. UltEvents' `InvokeSafe` does per-listener
   try/catch for exactly this; the C# `Settled` event doesn't. Fix: wrap `Settled?.Invoke`
   per-subscriber (or document `InvokeSafe` usage for `OnSettle`).
-- 🟡 **IL2CPP/AOT unverified** (bitcasts, generic instantiations, SerializeReference).
-  Device smoke test before shipping.
-- 🟡 **Closed-generic field serialization (`[SaintsSerialized]` route) unverified** —
-  `Gun.cs` pattern is the fallback. Until a scene round-trip proves data survives,
-  treat inspector-wiring as best-effort and code-composition as the blessed path.
+- 🟡 **IL2CPP/AOT unverified** (bitcasts, generic instantiations, SerializeReference —
+  serialization itself verified editor-side only). Device smoke test before shipping.
 - 🟡 **Temporal semantics untested.** Self-tests pin single-frame behavior only
   (EditMode time doesn't advance; handles read `Time.time` directly, so time-based
   logic needs a PlayMode run or a time-injection refactor to cover). Burst spacing,
   debounce windows, DoT cadence are the layer where regressions would hide.
-- 🔵 **No inspector visualization of live handles/episodes** — runtime debugging is
-  log-based. The hub era at least drew handles via Odin; field mode has nothing.
 - 🔵 **Handle pool is unbounded, main-thread-only.**
 - 🔵 **Not yet driven by real usage.** The motivating scenario (weapon system as
   `Trigger`/`Ammo`/`Heat` `EventModified` fields with pipelines) compiles but has not

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Sirenix.OdinInspector;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
@@ -84,10 +83,8 @@ namespace EventSystem2 {
     //------------------------------------------------------------------------------------------------------------------
 
     public abstract class EventHandle<TModifier> : EventHandle where TModifier : EventModifier {
-        [HideInInspector]
         public TModifier modifier;
 
-        [SerializeReference, HideReferenceObjectPicker, HideLabel, PropertyOrder(100)]
         private GenericEventHolder genericHelper;
 
         public override bool Initialize<T>(T @event, EventModifier modifier) {
@@ -135,10 +132,8 @@ namespace EventSystem2 {
     //------------------------------------------------------------------------------------------------------------------
 
     public abstract class EventHandle<TModifier, TEvent> : EventHandle where TModifier : EventModifier {
-        [HideInInspector]
         public TModifier modifier;
 
-        [PropertyOrder(100)]
         public TEvent @event;
 
         public override bool Initialize<T>(T @event, EventModifier modifier) {

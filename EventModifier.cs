@@ -18,6 +18,9 @@ namespace EventSystem2 {
         /// <summary>Advances this modifier's live handles. Implemented by EventModifier&lt;THandle&gt;.</summary>
         public abstract void Tick();
 
+        /// <summary>Live handle count — editor/debug aid (live state visualization).</summary>
+        public virtual int LiveHandleCount => 0;
+
         public void Continue<T>(in T @event) => Owner.Continue(in @event, this);
     }
 
@@ -27,6 +30,8 @@ namespace EventSystem2 {
     public abstract class EventModifier<THandle> : EventModifier where THandle : EventHandle, new() {
         /// <summary>Live handles. Runtime state only — never serialized.</summary>
         [NonSerialized] public List<THandle> handles = new();
+
+        public override int LiveHandleCount => handles.Count;
 
         public override void Push<T>(in T @event) {
             var handle = EventHandle.GetHandle<THandle>();

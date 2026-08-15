@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Sirenix.OdinInspector;
 using UltEvents;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -11,8 +10,14 @@ namespace EventSystem2 {
     /// Continue resolves the next modifier in the pipeline; the last Continue settles.
     /// </summary>
     [Serializable]
-    public abstract class EventModified {
+    public abstract class EventModified : ISerializationCallbackReceiver {
         [SerializeReference] protected List<EventModifier> _pipeline = new();
+
+        /// <summary>Read-only view of the pipeline (editor/debug aid).</summary>
+        public IReadOnlyList<EventModifier> Pipeline => _pipeline;
+
+        /// <summary>Last settled value, boxed. Editor/debug aid — boxes per call.</summary>
+        public abstract object BoxedLatest { get; }
 
         internal abstract void Continue<T>(in T @event, EventModifier from);
 
@@ -21,6 +26,15 @@ namespace EventSystem2 {
             for (var i = 0; i < _pipeline.Count; i++)
                 _pipeline[i].Tick();
         }
+
+        /// <summary>Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.</summary>
+        public void OnAfterDeserialize() {
+            foreach (var modifier in _pipeline)
+                if (modifier != null)
+                    modifier.Owner = this;
+        }
+
+        public void OnBeforeSerialize() { }
     }
 
     /// <summary>
@@ -40,11 +54,12 @@ namespace EventSystem2 {
         private int _dispatchDepth;
 
         /// <summary>Write = enter the pipeline. Read = last SETTLED value (not the posted one).</summary>
-        [ShowInInspector, ReadOnly]
         public T Value { get => _latest; set => Post(value); }
 
         /// <summary>Explicit read alias — same as reading .Value.</summary>
         public T Latest => _latest;
+
+        public override object BoxedLatest => _latest;
 
         public EventModified() { }
 
