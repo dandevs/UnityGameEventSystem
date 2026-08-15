@@ -172,17 +172,8 @@ public class EventModifiedDrawer : PropertyDrawer {
             public ModifierItem(Type type, string label) : base(label) => Type = type;
         }
 
-        /// <summary>"DelayEventModifier" → "Delay". Full type name stays greppable in the codebase.</summary>
-        private static string LabelFor(Type type) {
-            var name = type.Name;
-
-            if (name.EndsWith("EventModifier", StringComparison.Ordinal))
-                name = name[..^"EventModifier".Length];
-            else if (name.EndsWith("Modifier", StringComparison.Ordinal))
-                name = name[..^"Modifier".Length];
-
-            return ObjectNames.NicifyVariableName(name);
-        }
+        /// <summary>Display names are shared with list-element labels — see ModifierLabels.</summary>
+        private static string LabelFor(Type type) => ModifierLabels.LabelFor(type);
     }
 
     /// <summary>
