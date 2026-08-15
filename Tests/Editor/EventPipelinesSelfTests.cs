@@ -187,6 +187,68 @@ public static class EventPipelinesSelfTests
         reuseField.Update();
         Check("post-after-reset-works", reuseGot == 9 && reuseField.Value == 9);
 
+        // 17. EveryNth: absorbs below N (one burst, one Update per handle — the frame
+        //    guard blocks a second Update in the same EditMode frame).
+        var everyNth = new EveryNthEventModifier { N = 3 };
+        var nthField = new EventModified<int>(everyNth);
+        var nthSettles = new System.Collections.Generic.List<int>();
+        nthField.Settled += v => nthSettles.Add(v);
+        nthField.Post(1);
+        nthField.Post(2);
+        nthField.Update();
+        Check("everynth-absorbs-below-n", nthSettles.Count == 0 && everyNth.handles.Count == 1);
+
+        // 18. EveryNth fires the Nth event's payload (fresh handle — one Update).
+        var everyNth2 = new EveryNthEventModifier { N = 3 };
+        var nth2 = new EventModified<int>(everyNth2);
+        var nth2Got = -1;
+        nth2.Settled += v => nth2Got = v;
+        nth2.Post(10);
+        nth2.Post(20);
+        nth2.Post(30);
+        nth2.Update();
+        Check("everynth-fires-on-nth", nth2Got == 30);
+
+        // 19. EveryNth windows are self-contained: a fresh window fires again and the
+        //    fired handle retires. (Same-field recurrence needs frame advance — PlayMode.)
+        var everyNth3 = new EveryNthEventModifier { N = 3 };
+        var nth3 = new EventModified<int>(everyNth3);
+        var nth3Got = -1;
+        nth3.Settled += v => nth3Got = v;
+        nth3.Post(100);
+        nth3.Post(200);
+        nth3.Post(300);
+        nth3.Update();
+        Check("everynth-recurring-window", nth3Got == 300 && everyNth3.handles.Count == 0);
+
+        // 20. EveryNth N=1 is a pass-through gate — every event fires.
+        var everyOne = new EveryNthEventModifier { N = 1 };
+        var oneField = new EventModified<int>(everyOne);
+        var oneGot = -1;
+        oneField.Settled += v => oneGot = v;
+        oneField.Post(7);
+        oneField.Update();
+        Check("everynth-one-passes-through", oneGot == 7);
+
+        // 21. MinDelay time unit: held below minimum — episode alive, nothing settles
+        //    (same-frame pulse + update; release/threshold paths need frame advance).
+        var minDelayT = new MinDelayEventModifier { Unit = MinDelayUnit.Time, Seconds = 5f };
+        var delayFieldT = new EventModified<int>(minDelayT);
+        var delaySettlesT = 0;
+        delayFieldT.Settled += _ => delaySettlesT++;
+        delayFieldT.Post(1);
+        delayFieldT.Update();
+        Check("mindelay-time-holding-no-settle", delaySettlesT == 0 && minDelayT.handles.Count == 1);
+
+        // 22. MinDelay frames unit: held below minimum — episode alive, nothing settles.
+        var minDelayF = new MinDelayEventModifier { Unit = MinDelayUnit.Frames, Frames = 5 };
+        var delayFieldF = new EventModified<int>(minDelayF);
+        var delaySettlesF = 0;
+        delayFieldF.Settled += _ => delaySettlesF++;
+        delayFieldF.Post(1);
+        delayFieldF.Update();
+        Check("mindelay-frames-holding-no-settle", delaySettlesF == 0 && minDelayF.handles.Count == 1);
+
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
         if (verbose || fail > 0)
             Debug.Log($"<color={(fail > 0 ? "red" : "green")}>{summary}</color>");

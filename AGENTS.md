@@ -59,8 +59,8 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
-| `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (20, also Tools/EventPipelines menu, auto-run on load) |
+| `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`, `MinDelay`, `EveryNth`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (26, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -157,7 +157,12 @@ the bitcast in `Initialize` has no runtime conversion).
 **Pattern C — persistent / stream** (cross-event state + latest payload: debounce,
 throttle, coalescing; one live handle per episode). References: `DebounceEventModifier`,
 `MinHoldEventModifier` (hold-to-qualify gate — owner re-posts every frame while held;
-frame-stamped pulses, early release consumes).
+frame-stamped pulses, early release consumes), `MinDelayEventModifier` (MinHold with a
+`MinDelayUnit` enum — `Frames` (Time.frameCount) or `Time` (Time.timeAsDouble) for the
+minimum hold; same pulse/release model), `EveryNthEventModifier` (recurring event-count
+gate — absorbs until N events, fires the Nth payload and retires; the next event opens
+a fresh window, so it recurs via episodes; N=1 is a pass-through; at most one release
+per Update, same-frame surplus not carried over — Pattern C parks one payload, not a queue).
 
 ```csharp
 [Serializable]
