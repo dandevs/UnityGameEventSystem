@@ -231,26 +231,27 @@ public static class EventPipelinesSelfTests
             rearmField.Post(i);
         Check("everynth-reset-rearms", rearmGot == 8);
 
-        // 22. MinDelay time unit: held below minimum — episode alive, nothing settles
-        //    (same-frame pulse + update; release/threshold paths need frame advance).
-        var minDelayT = new MinDelayEventModifier { Unit = MinDelayUnit.Time, Seconds = 5f };
-        var delayFieldT = new EventModified<int>(minDelayT);
-        var delaySettlesT = 0;
-        delayFieldT.Settled += _ => delaySettlesT++;
-        delayFieldT.Post(1);
-        delayFieldT.Update();
-        Check("mindelay-time-holding-no-settle", delaySettlesT == 0 && minDelayT.handles.Count == 1);
+        // 22. Cooldown leading edge: the first post fires immediately, at Post time.
+        var cooldown = new CooldownEventModifier { Unit = CooldownUnit.Frames, Frames = 3 };
+        var cooldownField = new EventModified<int>(cooldown);
+        var cooldownShots = 0;
+        cooldownField.Settled += _ => cooldownShots++;
+        cooldownField.Post(1);
+        Check("cooldown-leading-fires", cooldownShots == 1);
 
-        // 23. MinDelay frames unit: held below minimum — episode alive, nothing settles.
-        var minDelayF = new MinDelayEventModifier { Unit = MinDelayUnit.Frames, Frames = 5 };
-        var delayFieldF = new EventModified<int>(minDelayF);
-        var delaySettlesF = 0;
-        delayFieldF.Settled += _ => delaySettlesF++;
-        delayFieldF.Post(1);
-        delayFieldF.Update();
-        Check("mindelay-frames-holding-no-settle", delaySettlesF == 0 && minDelayF.handles.Count == 1);
+        // 23. Cooldown absorbs posts inside the window (same frame < Frames; re-fire
+        //     after N frames needs frame advance — PlayMode, see AGENTS temporal note).
+        cooldownField.Post(2);
+        cooldownField.Post(3);
+        cooldownField.Update();
+        Check("cooldown-absorbs-on-cooldown", cooldownShots == 1);
 
-        // 24. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
+        // 24. Cooldown Reset re-arms: fires again in the same frame after Reset.
+        cooldownField.Reset();
+        cooldownField.Post(4);
+        Check("cooldown-reset-rearms", cooldownShots == 2);
+
+        // 25. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
         var burstRepeat = new RepeatEventModifier { Count = 4, Interval = 0f };
         var burstField = new EventModified<int>(burstRepeat);
         var burstShots = 0;

@@ -59,8 +59,8 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
-| `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`, `MinDelay`; counter gate (handle-less, fires at Post time): `EveryNth`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (28, also Tools/EventPipelines menu, auto-run on load) |
+| `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; counter gates (handle-less, fire at Post time): `EveryNth` (count), `Cooldown` (rate — min interval since last fire, leading edge, no trailing); plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted; `MinDelay` (hold-to-qualify with units) was replaced by `Cooldown` |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (29, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -157,9 +157,8 @@ the bitcast in `Initialize` has no runtime conversion).
 **Pattern C — persistent / stream** (cross-event state + latest payload: debounce,
 throttle, coalescing; one live handle per episode). References: `DebounceEventModifier`,
 `MinHoldEventModifier` (hold-to-qualify gate — owner re-posts every frame while held;
-frame-stamped pulses, early release consumes), `MinDelayEventModifier` (MinHold with a
-`MinDelayUnit` enum — `Frames` (Time.frameCount) or `Time` (Time.timeAsDouble) for the
-minimum hold; same pulse/release model).
+frame-stamped pulses, early release consumes). Do not confuse these with `Cooldown`
+(a counter-style rate gate, not an episode gate — see the counter rule below).
 
 ```csharp
 [Serializable]
@@ -185,10 +184,11 @@ in Semantics before changing absorb mechanics).
   never field initializers.
 - `modifier` is the shared config instance — read it, never write it from handles.
 - Cross-event state WITHOUT payload (counters, last-accepted timestamps) → plain modifier
-  fields on a Pattern A/B modifier (reference: `EveryNthEventModifier` — handle-less
-  counter gate; overrides `Push` to `Continue` at Post time with the event's own payload,
-  so same-frame burst loops fire every Nth correctly, and overrides `Reset` to re-arm;
-  `Update()` is a no-op). No handle gymnastics.
+  fields on a Pattern A/B modifier. References: `EveryNthEventModifier` — handle-less
+  count gate; `CooldownEventModifier` — handle-less rate gate (the `MinInterval` this
+  rule once hypothesized): overrides `Push` to `Continue` at Post time with the event's
+  own payload, so same-frame burst loops fire correctly, and overrides `Reset` to
+  re-arm; `Update()` is a no-op. No handle gymnastics.
 - Multi-value logic (fire N times): emit via multiple `Continue` calls across updates
   (see `Repeat` — where `Interval <= 0` bursts ALL Count emissions in a single Update),
   or at Post time for handle-less counter gates (see `EveryNth`) — not by reaching into
