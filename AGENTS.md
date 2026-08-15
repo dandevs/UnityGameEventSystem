@@ -46,7 +46,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
-| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts |
+| `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, TypeCache-discovered Add Modifier menu |
 | `Scripts/Modifiers/*` | Concrete modifiers (`Delay`, `Repeat`, `Burst`, `DamageOverTime` typed; `Debounce`, `Throttle` persistent) + `DamageEvent`, demo owners (`Gun`, `Enemy`) |
 | `Scripts/Modifiers/Editor/` | `EventSystem2SelfTests` (also Tools/EventSystem2 menu) |
 
@@ -165,7 +165,11 @@ in Semantics before changing absorb mechanics).
   (see `Burst`/`Repeat`/`DamageOverTime`), not by reaching into other handles.
 
 **Registration:** constructor (`new EventModified<T>(new MyEventModifier { ... })`),
-`.Add(modifier)`, or the `[SerializeReference]` list + runtime-wrap pattern (`Gun.cs`).
+`.Add(modifier)`, the `[SerializeReference]` list + runtime-wrap pattern (`Gun.cs`), or
+the inspector's **Add Modifier** menu. The menu offers exactly the modifiers that match
+the authoring contract: concrete, non-generic, `[Serializable]`, parameterless ctor
+(discovered via `TypeCache`, filter in `EventModifiedDrawer.GetAddableModifierTypes`).
+The native list's own "+" inserts a *null* managed reference — prefer the Add menu.
 
 ## Semantics agents must not break
 
