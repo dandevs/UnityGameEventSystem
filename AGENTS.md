@@ -60,7 +60,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
 | `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`, `MinDelay`; counter gate (handle-less, fires at Post time): `EveryNth`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (27, also Tools/EventPipelines menu, auto-run on load) |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (28, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -190,8 +190,9 @@ in Semantics before changing absorb mechanics).
   so same-frame burst loops fire every Nth correctly, and overrides `Reset` to re-arm;
   `Update()` is a no-op). No handle gymnastics.
 - Multi-value logic (fire N times): emit via multiple `Continue` calls across updates
-  (see `Repeat`), or at Post time for handle-less counter gates (see `EveryNth`) —
-  not by reaching into other handles.
+  (see `Repeat` — where `Interval <= 0` bursts ALL Count emissions in a single Update),
+  or at Post time for handle-less counter gates (see `EveryNth`) — not by reaching into
+  other handles.
 
 **Registration:** constructor (`new EventModified<T>(new MyEventModifier { ... })`),
 `.Add(modifier)`, the `[SerializeReference]` list + runtime-wrap pattern (`Gun.cs`), or

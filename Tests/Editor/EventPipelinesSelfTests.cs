@@ -250,6 +250,15 @@ public static class EventPipelinesSelfTests
         delayFieldF.Update();
         Check("mindelay-frames-holding-no-settle", delaySettlesF == 0 && minDelayF.handles.Count == 1);
 
+        // 24. Repeat burst mode: Interval <= 0 emits ALL Count in one Update, then retires.
+        var burstRepeat = new RepeatEventModifier { Count = 4, Interval = 0f };
+        var burstField = new EventModified<int>(burstRepeat);
+        var burstShots = 0;
+        burstField.Settled += _ => burstShots++;
+        burstField.Post(1);
+        burstField.Update();
+        Check("repeat-zero-interval-burst", burstShots == 4 && burstRepeat.handles.Count == 0);
+
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
         if (verbose || fail > 0)
             Debug.Log($"<color={(fail > 0 ? "red" : "green")}>{summary}</color>");
