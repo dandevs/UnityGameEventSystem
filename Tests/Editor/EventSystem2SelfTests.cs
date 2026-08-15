@@ -79,14 +79,14 @@ public static class EventSystem2SelfTests
         Check("debounce-no-settle-in-window", settles == 0);
         Check("debounce-value-unchanged", debField.Value.Equals(default(int)));
 
-        // 6. Burst: one Tick emits exactly the first shot; handle stays alive.
-        var burst = new BurstEventModifier { Count = 3, Interval = 5f };
-        var burstField = new EventModified<int>(burst);
+        // 6. Repeat: one Tick emits exactly the first shot; handle stays alive.
+        var repeat = new RepeatEventModifier { Count = 3, Interval = 5f };
+        var repeatField = new EventModified<int>(repeat);
         var shots = 0;
-        burstField.Settled += _ => shots++;
-        burstField.Post(1);
-        burstField.Tick();
-        Check("burst-first-shot-only", shots == 1 && burst.handles.Count == 1);
+        repeatField.Settled += _ => shots++;
+        repeatField.Post(1);
+        repeatField.Tick();
+        Check("repeat-first-shot-only", shots == 1 && repeat.handles.Count == 1);
 
         // 7. UltEvent terminal + code terminal both fire on settle.
         var ult = new EventModified<int>();

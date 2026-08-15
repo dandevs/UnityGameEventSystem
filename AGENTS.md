@@ -56,7 +56,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null"); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
-| `Modifiers/*` | Builtin modifier library, namespace `EventSystem2` — Pattern A: `Delay`, `Repeat`, `Burst`, `Chance`; Pattern B: `DamageOverTime`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type) |
+| `Modifiers/*` | Builtin modifier library, namespace `EventSystem2` — Pattern A: `Delay`, `Repeat`, `Chance`; Pattern B: `DamageOverTime`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater (`Burst` was a duplicate and was deleted) |
 | `Tests/Editor/EventSystem2SelfTests.cs` | EditMode self-tests (13, also Tools/EventSystem2 menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
