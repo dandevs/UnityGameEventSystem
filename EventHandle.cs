@@ -14,6 +14,7 @@ namespace EventSystem2 {
         public virtual void Enter() => OnEnter();
         public virtual void Exit() => OnExit();
         public abstract bool Update();
+        public virtual void Reset() => frameLastUpdated = -1;
 
         protected virtual void OnEnter() {}
         protected virtual void OnExit() {}
@@ -43,6 +44,8 @@ namespace EventSystem2 {
         }
 
         public static void ReturnHandle(EventHandle handle) {
+            handle.Reset();
+
             var type = handle.GetType();
 
             if (!handlePools.TryGetValue(type, out var pool)) {
@@ -102,8 +105,16 @@ namespace EventSystem2 {
             return true;
         }
 
-        public sealed override void Enter() => base.OnEnter();
-        public sealed override void Exit() => base.OnExit();
+        public override void Reset() {
+            modifier = null;
+            genericHelper = null;
+            base.Reset();
+        }
+
+        // Virtual dispatch (NOT base.OnEnter — base calls are nonvirtual and would
+        // bypass derived overrides; that was a latent bug in the original framework).
+        public sealed override void Enter() => OnEnter();
+        public sealed override void Exit() => OnExit();
 
         public override bool Update() {
             var frame = Time.frameCount;
@@ -136,7 +147,7 @@ namespace EventSystem2 {
                 return false;
             }
 
-            if (!typeof(T).IsAssignableFrom(typeof(TEvent))) {
+            if (!typeof(TEvent).IsAssignableFrom(typeof(T))) {
                 Debug.LogWarning($"Event {typeof(TEvent)} expected, but {typeof(T)} received.");
                 return false;
             }
@@ -147,8 +158,14 @@ namespace EventSystem2 {
             return true;
         }
 
-        public sealed override void Enter() => base.Enter();
-        public sealed override void Exit() => base.Exit();
+        public override void Reset() {
+            modifier = null;
+            @event = default;
+            base.Reset();
+        }
+
+        public sealed override void Enter() => OnEnter();
+        public sealed override void Exit() => OnExit();
 
         public override bool Update() {
             var frame = Time.frameCount;
