@@ -21,6 +21,13 @@ namespace EventPipelines {
         /// <summary>Live handle count — editor/debug aid (live state visualization).</summary>
         public virtual int LiveHandleCount => 0;
 
+        /// <summary>
+        /// Aborts this modifier's live handles — pending events die, nothing settles.
+        /// Base is a no-op (no handles); EventModifier&lt;THandle&gt; drains them.
+        /// </summary>
+        /// <param name="callExit">True: OnExit runs per handle (graceful). False: hard abort.</param>
+        public virtual void Reset(bool callExit = true) { }
+
         public void Continue<T>(in T @event) {
             if (Owner == null) {
                 // Inspector mid-edit assignment (e.g. type picked on a null row) bypasses Add()/rebind.
@@ -65,6 +72,25 @@ namespace EventPipelines {
                     EventHandle.ReturnHandle(handle);
                     i--;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Aborts all live handles (pending events die, nothing settles). The list is
+        /// cleared BEFORE any OnExit runs — an OnExit that Posts lands on a fresh list,
+        /// so reset covers exactly the handles alive at call time.
+        /// </summary>
+        public override void Reset(bool callExit = true) {
+            if (handles.Count == 0)
+                return;
+
+            var drained = handles.ToArray();
+            handles.Clear();
+
+            foreach (var handle in drained) {
+                if (callExit)
+                    handle.Exit();
+                EventHandle.ReturnHandle(handle);   // runs handle.Reset() — pool hygiene
             }
         }
     }

@@ -30,6 +30,16 @@ namespace EventPipelines {
                 _pipeline[i]?.Tick();
         }
 
+        /// <summary>
+        /// Aborts every modifier's live handles — pending events die, nothing settles.
+        /// Call when the field's context dies (holster, disable, despawn). Null pipeline
+        /// elements are skipped; callExit=false skips every handle's OnExit (hard abort).
+        /// </summary>
+        public void Reset(bool callExit = true) {
+            for (var i = 0; i < _pipeline.Count; i++)
+                _pipeline[i]?.Reset(callExit);
+        }
+
         /// <summary>Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.</summary>
         public void OnAfterDeserialize() {
             foreach (var modifier in _pipeline)

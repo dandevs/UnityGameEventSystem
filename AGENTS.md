@@ -53,14 +53,14 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | File | Contents |
 |---|---|
 | `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Tick) + non-generic base (pipeline, chain walk) |
-| `EventModifier.cs` | Plain `EventModifier` (Push/Tick abstract, Owner, Continue) + `EventModifier<THandle>` (rent/tick/retire handles) |
+| `EventModifier.cs` | Plain `EventModifier` (Push/Tick abstract, Owner, Continue, Reset-abort) + `EventModifier<THandle>` (rent/tick/retire handles, drain-on-Reset) |
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
 | `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (16, also Tools/EventPipelines menu, auto-run on load) |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (20, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -90,6 +90,8 @@ public class Enemy : MonoBehaviour {
 [SerializeReference] List<EventModifier> _pipeline = new();
 
 // 3. Send: assignment posts. 4. Read: last SETTLED value. 5. React: Settled / OnSettle / IEventListener<T>.
+// 6. Abort: field.Reset() — kill all pending handles (nothing settles); call it when the
+//    field's context dies (holster, disable, despawn). Reset(callExit: false) skips OnExit.
 enemy.Damage.Value = new DamageEvent(25f, attacker);
 ```
 
@@ -208,7 +210,11 @@ counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nul
   safe (per-handle frame guard); not ticking stalls handles silently.
 - **Handle lifecycle:** `Push` rents + `Enter()` (init belongs in `OnEnter` — handles are
   pooled; `Reset()` runs on pool return); each `Update()` at most once per frame; `true`
-  → `Exit()` + pooled.
+  → `Exit()` + pooled. `EventModifier.Reset(bool callExit = true)` (and field-level
+  `EventModified.Reset`) aborts live handles outside the retire path — the handles list
+  is cleared before any `OnExit` runs (an `OnExit` that Posts lands on a fresh list);
+  `callExit: false` skips `OnExit` entirely (hard abort). Not the same thing as handle
+  `Reset()` — that one is pool hygiene.
 - **State homes:** per-event state → handle fields; cross-event state without payload
   (counters, last-accepted time) → modifier fields; cross-event state + latest payload
   (Debounce/Throttle/coalescing) → persistent handle (one live handle per episode,

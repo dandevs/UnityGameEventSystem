@@ -146,6 +146,47 @@ public static class EventPipelinesSelfTests
         catch (ArgumentNullException) { addNullThrew = true; }
         Check("add-null-throws", addNullThrew);
 
+        // 13. Reset aborts pending handles — nothing settles afterwards.
+        var resetDelay = new DelayEventModifier { Seconds = 5f };
+        var resetField = new EventModified<int>(resetDelay);
+        var resetSettled = false;
+        resetField.Settled += _ => resetSettled = true;
+        resetField.Post(1);
+        resetField.Tick();
+        resetField.Reset();
+        resetField.Tick();
+        Check("reset-kills-pending-handles", !resetSettled && resetDelay.handles.Count == 0);
+
+        // 14. Reset(callExit): graceful runs OnExit per handle; hard abort skips it.
+        SpyEventModifier.Enters = SpyEventModifier.Exits = 0;
+        var spyField = new EventModified<int>(new SpyEventModifier());
+        spyField.Post(1);
+        spyField.Reset(callExit: false);
+        var hardExits = SpyEventModifier.Exits;
+        spyField.Post(2);
+        spyField.Reset();
+        Check("reset-callexit-gates-onexit",
+            hardExits == 0 && SpyEventModifier.Exits == 1 && SpyEventModifier.Enters == 2);
+
+        // 15. Field Reset walks past nulls (inspector-inserted), no NRE.
+        var nullReset = new NullInjectField(new DelayEventModifier { Seconds = 5f });
+        nullReset.InjectNull(0);
+        nullReset.Post(1);
+        nullReset.Tick();
+        nullReset.Reset();
+        Check("reset-skips-nulls", nullReset.DelayHandles == 0);
+
+        // 16. Pooled handles stay healthy across resets — a post-reset Post behaves normally.
+        var reuseDelay = new DelayEventModifier { Seconds = 0f };
+        var reuseField = new EventModified<int>(reuseDelay);
+        reuseField.Post(1);
+        reuseField.Reset();
+        var reuseGot = -1;
+        reuseField.Settled += v => reuseGot = v;
+        reuseField.Post(9);
+        reuseField.Tick();
+        Check("post-after-reset-works", reuseGot == 9 && reuseField.Value == 9);
+
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
         if (verbose || fail > 0)
             Debug.Log($"<color={(fail > 0 ? "red" : "green")}>{summary}</color>");
@@ -167,6 +208,20 @@ public static class EventPipelinesSelfTests
 
         public void InjectNull(int index) =>
             _pipeline.Insert(index == int.MaxValue ? _pipeline.Count : index, null);
+    }
+
+    /// <summary>
+    /// Test-only observation modifier: handle never retires on its own, Enter/Exit are
+    /// counted statically. Deliberately NOT [Serializable] — keeps it out of the Add menu.
+    /// </summary>
+    private class SpyEventModifier : EventModifier<SpyEventModifier.Handle> {
+        public static int Enters, Exits;
+
+        public class Handle : EventHandle<SpyEventModifier> {
+            protected override void OnEnter() => Enters++;
+            protected override void OnExit() => Exits++;
+            protected override bool OnUpdate<T>(ref T @event) => false;   // stays alive until Reset
+        }
     }
 }
 #endif
