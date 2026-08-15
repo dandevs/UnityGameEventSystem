@@ -16,6 +16,9 @@ fixes carried forward into the new owner code (chain walk, fall-through, pool re
 joined by `ChanceEventModifier` and `MinHoldEventModifier`. Managed references
 serialized before the move (assembly + namespace changed) were deliberately orphaned —
 no `[MovedFrom]`. `Gun`/`Enemy` remain game-side demos in `Scripts/Modifiers/`.
+`BurstEventModifier` was deleted (duplicate of `Repeat`); `DamageOverTimeModifier` was
+deleted too — typed to `DamageEvent`, so it is a project-specific modifier, not a
+generic builtin.
 
 ## Dependencies
 
@@ -56,7 +59,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in Tick())
 | `EventSystem2.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts, searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null"); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
-| `Modifiers/*` | Builtin modifier library, namespace `EventSystem2` — Pattern A: `Delay`, `Repeat`, `Chance`; Pattern B: `DamageOverTime`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater (`Burst` was a duplicate and was deleted) |
+| `Modifiers/*` | Builtin modifier library, namespace `EventSystem2` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted |
 | `Tests/Editor/EventSystem2SelfTests.cs` | EditMode self-tests (13, also Tools/EventSystem2 menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
@@ -76,7 +79,7 @@ modifier owned by a different `EventModified<T>`.
 ```csharp
 // 1. Declare a field + pipeline (code-composed)...
 public class Enemy : MonoBehaviour {
-    public EventModified<DamageEvent> Damage = new(new DamageOverTimeModifier { TickCount = 5, Duration = 2f });
+    public EventModified<DamageEvent> Damage = new(new DebounceEventModifier { QuietPeriod = 0.2f });
     void Awake() => Damage.Settled += e => Debug.Log(e.Amount);
     void Update() => Damage.Tick();          // owner ticks — once per frame, per field
 }
@@ -133,8 +136,9 @@ public class MyEventModifier : EventModifier<MyEventModifier.Handle> {
 }
 ```
 
-**Pattern B — per-event, typed** (logic reads/writes event fields). Reference:
-`DamageOverTimeModifier`. Same structure, but:
+**Pattern B — per-event, typed** (logic reads/writes event fields). No builtin
+example — typed modifiers are project-specific by design; keep them game-side
+(`Scripts/Modifiers/` still feeds the Add menu). Same structure as Pattern A, but:
 
 ```csharp
 public class Handle : EventHandle<MyEventModifier, DamageEvent> {   // declares the event type
