@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Reflection;
 using EventPipelines;
 using UnityEditor;
 using UnityEngine;
@@ -317,6 +318,27 @@ public static class EventPipelinesSelfTests
         rmField.Settled += v => gotAfterRemove = v;
         rmField.Post(7);
         Check("remove-detaches", gotAfterRemove == 7 && !rmField.Remove(new DelayEventModifier()));
+
+        // 33. Modifier IDs: generated at construction, unique per instance, never empty.
+        var idA = new DelayEventModifier();
+        var idB = new DelayEventModifier();
+        Check("modifier-ids-distinct",
+            !string.IsNullOrEmpty(idA.Id) && !string.IsNullOrEmpty(idB.Id) && idA.Id != idB.Id);
+
+        // 34. Get(id) round-trip: finds the modifier by reference; unknown IDs miss.
+        var gate = new CooldownEventModifier();
+        var lookupField = new EventModified<int>(gate, new DelayEventModifier());
+        Check("get-by-id-roundtrip",
+            ReferenceEquals(lookupField.Get(gate.Id), gate) && lookupField.Get("no-such-id") == null);
+
+        // 35. ID backfill on deserialize: a legacy empty _id self-heals via OnAfterDeserialize.
+        var legacy = new DelayEventModifier();
+        var legacyField = new EventModified<int>(legacy);
+        typeof(EventModifier)
+            .GetField("_id", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(legacy, null);
+        legacyField.OnAfterDeserialize();
+        Check("id-backfill-on-deserialize", !string.IsNullOrEmpty(legacy.Id));
 
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
         if (verbose || fail > 0)

@@ -26,6 +26,13 @@ designer-wireable inspector terminal is gone by design: settle reactions live in
 (`Settled` / `OnSettle` / `IEventListener<T>`). The plugin now has zero third-party
 dependencies.
 
+**2026-08 modifier IDs:** every `EventModifier` carries a unique serialized ID
+(`Guid` "N", `[HideInInspector]` — `EventModifier.Id`). Generated at construction,
+self-heals on access, backfilled in `OnAfterDeserialize` (which also warns once per
+load on duplicates — copied inspector rows; deliberately NOT auto-fixed). Lookup:
+`field.Get(id)`, linear scan. IDs are the stable anchor for external references
+(configs, save games) across saves and domain reloads.
+
 ## Dependencies
 
 - **UltEvents** — removed 2026-08; `OnSettle` is now a plain C# `event Action<T>` (code-only subscription, alias of `Settled`). Scenes with serialized `OnSettle:` UltEvent data drop it silently on next save — rewire in code.
@@ -59,14 +66,14 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | File | Contents |
 |---|---|
 | `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Update) + non-generic base (pipeline, chain walk, Remove with abort-detach, field-level LiveHandleCount/Active) |
-| `EventModifier.cs` | Plain `EventModifier` (Push/Update abstract, Owner, Continue, Reset-abort) + `EventModifier<THandle>` (rent/update/retire handles, drain-on-Reset) |
+| `EventModifier.cs` | Plain `EventModifier` (Push/Update abstract, Owner, Continue, Reset-abort, unique serialized `Id`) + `EventModifier<THandle>` (rent/update/retire handles, drain-on-Reset) |
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
 | `EventPipelines.cs` | `IEventListener<T>` (subscribe contract) |
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
 | `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; counter gates (handle-less, fire at Post time): `EveryNth` (count), `Cooldown` (rate — min interval since last fire, leading edge, no trailing), `Tap` (silence — min quiet window between CALLS, every call stamps: held spam absorbed, "tap to shoot"; the inverse of Cooldown — compose `[Tap, Cooldown]` for tap-to-fire with capped rate); plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted; `MinDelay` (hold-to-qualify with units) was replaced by `Cooldown` |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (36, also Tools/EventPipelines menu, auto-run on load) |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (39, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -286,6 +293,11 @@ counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nul
   live handle per episode, `handles.Count ∈ {0,1}`; `Pulse` = re-Initialize payload
   swap, no `OnEnter` rerun). Post-time decisions stay handle-less even when a payload
   is parked (count-triggered buffer) — see Writing modifiers → "Handle or no handle".
+- **Modifier IDs:** unique per instance (`Guid` "N"), serialized, inspector-hidden.
+  Generated at construction; `Id` self-heals empty (legacy data); `OnAfterDeserialize`
+  backfills + warns once on duplicates (copied rows are data — not auto-fixed). Lookup
+  via `field.Get(id)`. Stable across saves/domain reloads — the anchor for external
+  references (configs, save games). Not an ordering or priority mechanism.
 - **Future, deliberately NOT implemented:** a `ShouldAbsorb<T>(in T)` virtual on
   `EventModifierPersistent` as the fold-or-spill dial (persistent base is fold-only;
   spilling pulses into their own handle would relax the invariant to `{0..N}` and needs

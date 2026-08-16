@@ -84,12 +84,46 @@ namespace EventPipelines
             return true;
         }
 
-        /// <summary>Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.</summary>
+        /// <summary>
+        /// Lookup by modifier ID (see EventModifier.Id) — first match, or null.
+        /// Linear scan; pipelines are short. Null elements are skipped.
+        /// </summary>
+        public EventModifier Get(string id)
+        {
+            for (var i = 0; i < _pipeline.Count; i++)
+                if (_pipeline[i] != null && _pipeline[i].Id == id)
+                    return _pipeline[i];
+
+            return null;
+        }
+
+        /// <summary>
+        /// Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.
+        /// Also backfills missing IDs (legacy data) and warns once per load on duplicates
+        /// (copied inspector rows) — duplicates are NOT auto-fixed: silently regenerating
+        /// would mutate data; the warning points at the real problem.
+        /// </summary>
         public void OnAfterDeserialize()
         {
+            HashSet<string> seen = null;
+            string firstDuplicate = null;
+
             foreach (var modifier in _pipeline)
-                if (modifier != null)
-                    modifier.Owner = this;
+            {
+                if (modifier == null)
+                    continue;
+
+                modifier.Owner = this;
+                var id = modifier.Id;              // self-heals empty IDs
+
+                seen ??= new HashSet<string>();
+                if (!seen.Add(id) && firstDuplicate == null)
+                    firstDuplicate = id;
+            }
+
+            if (firstDuplicate != null)
+                Debug.LogWarning(
+                    $"({GetType().Name}) Duplicate modifier ID '{firstDuplicate}' — a modifier was probably copied in the inspector. IDs must be unique for stable Get(id) lookups.");
         }
 
         public void OnBeforeSerialize() { }

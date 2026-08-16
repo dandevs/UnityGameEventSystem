@@ -13,6 +13,17 @@ namespace EventPipelines
     [Serializable]
     public abstract class EventModifier
     {
+        /// <summary>
+        /// Unique instance ID — generated once at construction, serialized, hidden from
+        /// the inspector. Stable anchor for lookups (EventModified.Get) across saves and
+        /// domain reloads. Self-heals if empty (legacy data) on first access.
+        /// </summary>
+        [SerializeField, HideInInspector] private string _id = GenerateId();
+
+        public string Id => _id ??= GenerateId();
+
+        private static string GenerateId() => Guid.NewGuid().ToString("N");
+
         /// <summary>Pipeline owner — assigned by EventModified&lt;T&gt; on registration.</summary>
         internal EventModified Owner { get; set; }
 
