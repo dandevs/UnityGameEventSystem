@@ -292,6 +292,33 @@ public static class EventPipelinesSelfTests
         burstField.Update();
         Check("repeat-zero-interval-burst", burstShots == 4 && burstRepeat.handles.Count == 0);
 
+        // 30. Field-level handle count: sums across the pipeline (handle-less gate
+        //     contributes 0, parker stacks one handle per passed post); fresh field not active.
+        var sumField = new EventModified<int>(
+            new EveryNthEventModifier { N = 1 },
+            new DelayEventModifier { Seconds = 5f });
+        var freshInactive = !sumField.Active && sumField.LiveHandleCount == 0;
+        sumField.Post(1);
+        var oneLive = sumField.LiveHandleCount == 1 && sumField.Active;
+        sumField.Post(2);
+        Check("field-count-sums", freshInactive && oneLive && sumField.LiveHandleCount == 2);
+
+        // 31. Remove aborts in-flight work: detach → Reset → nothing settles, no stalled handles.
+        var rmDelay = new DelayEventModifier { Seconds = 5f };
+        var rmField = new EventModified<int>(rmDelay);
+        var rmSettles = 0;
+        rmField.Settled += _ => rmSettles++;
+        rmField.Post(1);
+        var removed = rmField.Remove(rmDelay);
+        rmField.Update();
+        Check("remove-aborts-inflight", removed && !rmField.Active && rmSettles == 0);
+
+        // 32. Remove detaches: later posts settle immediately (empty pipeline); absent modifier → false.
+        var gotAfterRemove = -1;
+        rmField.Settled += v => gotAfterRemove = v;
+        rmField.Post(7);
+        Check("remove-detaches", gotAfterRemove == 7 && !rmField.Remove(new DelayEventModifier()));
+
         var summary = $"EventPipelines self-tests: {pass} passed, {fail} failed";
         if (verbose || fail > 0)
             Debug.Log($"<color={(fail > 0 ? "red" : "green")}>{summary}</color>");

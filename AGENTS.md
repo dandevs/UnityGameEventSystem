@@ -52,7 +52,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 
 | File | Contents |
 |---|---|
-| `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Update) + non-generic base (pipeline, chain walk) |
+| `EventModified.cs` | `EventModified<T>` (Post/Value/Settle/Settled/OnSettle/Update) + non-generic base (pipeline, chain walk, Remove with abort-detach, field-level LiveHandleCount/Active) |
 | `EventModifier.cs` | Plain `EventModifier` (Push/Update abstract, Owner, Continue, Reset-abort) + `EventModifier<THandle>` (rent/update/retire handles, drain-on-Reset) |
 | `EventHandle.cs` | `EventHandle` (pool + `GenericEventHolder<T>` trampoline) + two generic variants |
 | `EventModifierPersistent.cs` | `PersistentHandle<TModifier>` + `EventModifierPersistent<TModifier, THandle>` (one live handle per episode) |
@@ -60,7 +60,7 @@ Value = x ─→ Post(x) ─→ pipeline[0].Push ─→ (handles tick in field.U
 | `Editor/EventModifiedDrawer.cs` | Custom property drawer for `EventModified` fields — foldout header + play-mode value badge, native managed-reference pipeline list, per-modifier live handle counts (wrapping, null-safe), searchable Add Modifier dropdown (AdvancedDropdown, TypeCache-discovered, grouped Per-Event/Stream) |
 | `Editor/EventModifierElementDrawer.cs` | Labels `[SerializeReference]` EventModifier list elements by concrete type ("Element 0" → "Delay", nulls → "Null", play-mode " · N" live handle count); `ModifierLabels` is the single source of display names (shared with the Add dropdown) |
 | `Modifiers/*` | Builtin modifier library, namespace `EventPipelines` — all **event-agnostic by design** (typed modifiers are project-specific; keep them game-side): Pattern A: `Delay`, `Repeat`, `Chance`; Pattern C: `Debounce`, `Throttle`, `MinHold`; counter gates (handle-less, fire at Post time): `EveryNth` (count), `Cooldown` (rate — min interval since last fire, leading edge, no trailing), `Tap` (silence — min quiet window between CALLS, every call stamps: held spam absorbed, "tap to shoot"; the inverse of Cooldown — compose `[Tap, Cooldown]` for tap-to-fire with capped rate); plus `DamageEvent` (reference payload type). `Repeat` is the canonical "emit N times" repeater — `Burst` (duplicate) and `DamageOverTime` (typed, not generic) were deleted; `MinDelay` (hold-to-qualify with units) was replaced by `Cooldown` |
-| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (33, also Tools/EventPipelines menu, auto-run on load) |
+| `Tests/Editor/EventPipelinesSelfTests.cs` | EditMode self-tests (36, also Tools/EventPipelines menu, auto-run on load) |
 | game-side `Scripts/Modifiers/*` | Demo owners only (`Gun`, `Enemy`) — project samples, not part of the plugin |
 
 **Why two handle variants** — the trampoline solves C# generic erasure: a non-generic
@@ -230,6 +230,25 @@ The native list's own "+" inserts a *null* managed reference — still prefer th
 menu, but nulls are **tolerated at runtime**: every pipeline walk (Post start, Continue
 next-hop, Update) skips them, the inspector shows them as "Null" (list label and live
 counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nulls are data.
+
+## Removing modifiers
+
+- **Safe window:** `!field.Active` — field-level `LiveHandleCount` (summed across the
+  pipeline, nulls skipped) is 0. Handle-less gates and Post-time transforms are always
+  safe (no handles, ever); parkers/emitters are safe between episodes.
+- **`Remove(modifier)` always aborts:** detach-first-then-`Reset()` — removed from the
+  pipeline before `Reset()` runs (an `OnExit` that Posts skips the outgoing modifier,
+  so nothing re-rents a handle on it), handles drained + pooled, `OnReset()` re-arms,
+  `Owner` unbound (re-`Add()` rebinds). Returns false if absent; `Remove(null)` throws
+  (same doctrine as `Add`). Hard-abort variant: `modifier.Reset(false); field.Remove(...)`.
+- **Natural drain is the caller's job:** wait for `!Active` (poll or finish hook),
+  then `Remove` — the modifier finishes emitting, then detaches cleanly.
+- **Deliberately NOT supported:** mid-flight continuation after removal — tombstone /
+  ghost-pipeline / live-routing designs were priced and rejected (simplicity over the
+  one scenario they enable). Removing an active modifier ABORTS its in-flight work.
+- **Edge, defined:** removing from inside a `Settled` handler mid-burst → the burst's
+  remaining `Continue`s hit the orphan path (warn + settle directly). Defined, not
+  corruption.
 
 ## Semantics agents must not break
 

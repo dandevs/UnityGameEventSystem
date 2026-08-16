@@ -44,6 +44,47 @@ namespace EventPipelines
                 _pipeline[i]?.Reset(callExit);
         }
 
+        /// <summary>
+        /// Total live handles across the pipeline (null elements skipped). Zero means
+        /// nothing is in flight anywhere — the safe window to modify the pipeline.
+        /// </summary>
+        public int LiveHandleCount
+        {
+            get
+            {
+                var total = 0;
+
+                for (var i = 0; i < _pipeline.Count; i++)
+                    total += _pipeline[i]?.LiveHandleCount ?? 0;
+
+                return total;
+            }
+        }
+
+        /// <summary>Something in flight (field-level) — NOT active = safe window to modify the pipeline.</summary>
+        public bool Active => LiveHandleCount > 0;
+
+        /// <summary>
+        /// Detaches a modifier, aborting its in-flight work. Removed from the pipeline
+        /// FIRST — OnExit-fired posts skip the outgoing modifier (no re-rented stalled
+        /// handles) — then Reset() (graceful: OnExit runs, handles drained, OnReset
+        /// re-arms) and Owner unbound (re-Add() rebinds). Natural-drain semantics =
+        /// wait for IsInactive, then Remove. Returns false if absent; null throws.
+        /// </summary>
+        public bool Remove(EventModifier modifier)
+        {
+            if (modifier == null)
+                throw new ArgumentNullException(nameof(modifier),
+                    "Explicit nulls are a code bug — inspector-inserted nulls are tolerated, Remove(null) is not.");
+
+            if (!_pipeline.Remove(modifier))
+                return false;
+
+            modifier.Reset();
+            modifier.Owner = null;
+            return true;
+        }
+
         /// <summary>Deserialization bypasses Add() — rebind Owner here or the first Continue NREs.</summary>
         public void OnAfterDeserialize()
         {

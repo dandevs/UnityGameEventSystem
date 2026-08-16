@@ -24,6 +24,9 @@ namespace EventPipelines
         /// <summary>Live handle count — editor/debug aid (live state visualization).</summary>
         public virtual int LiveHandleCount => 0;
 
+        /// <summary>Something in flight — NOT active = safe window to detach (see EventModified.Remove).</summary>
+        public bool Active => LiveHandleCount > 0;
+
         /// <summary>
         /// Aborts this modifier's live state — pending events die, nothing settles.
         /// Non-virtual: drains live handles (ResetHandles), then runs OnReset().
