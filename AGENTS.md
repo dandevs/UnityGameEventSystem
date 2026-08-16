@@ -114,6 +114,33 @@ game-side in `Scripts/Modifiers/` (they'll still show in the Add menu). Three
 patterns; pick by where the state lives (see Semantics → State homes). Reference
 implementations exist for all three — copy the closest one.
 
+**Handle or no handle?** Two questions decide it:
+
+1. Must the decision happen on a **later frame** (wake when time passes, fire at a
+   threshold, retire after a quiet window)?
+2. Must a **payload stay parked** after `Push` returns (delivered/mutated later)?
+
+Both **no** → handle-less (`EventModifier` base, "counter gate"): decide inside `Push`
+at Post time — `Continue(in @event)` with the caller's own payload, or absorb.
+`Update()` is a no-op; re-arm in `OnReset`; state lives on plain modifier fields.
+References: `EveryNth` (count), `Cooldown` (rate), `Tap` (silence). A handle here pays
+rent (pooling, frame-guard bookkeeping, per-frame no-op ticks) for machinery it never
+uses. Post-time multi-`Continue` is legal (`EveryNth`, `Repeat` burst) — each Continue
+walks the pipeline and settles independently.
+Any **yes** → handle: per-event state → Pattern A/B; cross-event state + parked
+latest payload → Pattern C.
+
+Litmus test: *after `Push` returns, is any event still pending?* Yes → a handle must
+hold it (only handles may know `T` across frames). No → handle-less.
+
+Erasure note (handle-less): the modifier still cannot declare `T`/`List<T>` fields —
+scalars go directly on modifier fields (`int _seen`, frame/time stamps); a parked
+typed payload needs a tiny private typed-holder hierarchy created on first `Push` and
+kept in ONE `[NonSerialized]` field (e.g. a count-triggered buffer: park, then
+flush-all at Capacity inside `Push`). No dictionary/CWT keying — a modifier is never
+pooled and belongs to one field, and one field is one `T` forever. The CWT on handles
+exists because POOLED handles see many `T`s across rentals.
+
 **Pattern A — per-event, event-agnostic** (one handle per incoming event; overlapping
 events run as independent handles = stack policy). Reference: `DelayEventModifier`.
 
@@ -230,8 +257,10 @@ counts), and `Add(null)` throws — explicit code nulls are a bug, inspector nul
   Not the same thing as handle `Reset()` — that one is pool hygiene.
 - **State homes:** per-event state → handle fields; cross-event state without payload
   (counters, last-accepted time) → modifier fields; cross-event state + latest payload
-  (Debounce/Throttle/coalescing) → persistent handle (one live handle per episode,
-  `handles.Count ∈ {0,1}`; `Pulse` = re-Initialize payload swap, no `OnEnter` rerun).
+  with a **deferred decision** (fire later / at a threshold) → persistent handle (one
+  live handle per episode, `handles.Count ∈ {0,1}`; `Pulse` = re-Initialize payload
+  swap, no `OnEnter` rerun). Post-time decisions stay handle-less even when a payload
+  is parked (count-triggered buffer) — see Writing modifiers → "Handle or no handle".
 - **Future, deliberately NOT implemented:** a `ShouldAbsorb<T>(in T)` virtual on
   `EventModifierPersistent` as the fold-or-spill dial (persistent base is fold-only;
   spilling pulses into their own handle would relax the invariant to `{0..N}` and needs
