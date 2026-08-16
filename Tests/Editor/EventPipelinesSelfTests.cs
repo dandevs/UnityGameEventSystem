@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System;
 using EventPipelines;
-using UltEvents;
 using UnityEditor;
 using UnityEngine;
 
@@ -88,10 +87,10 @@ public static class EventPipelinesSelfTests
         repeatField.Update();
         Check("repeat-first-shot-only", shots == 1 && repeat.handles.Count == 1);
 
-        // 7. UltEvent terminal + code terminal both fire on settle.
+        // 7. Both code terminals (OnSettle + Settled) fire on settle.
         var ult = new EventModified<int>();
         var ultCalls = 0;
-        UltEvent<int>.AddDynamicCall(ref ult.OnSettle, _ => ultCalls++);
+        ult.OnSettle += _ => ultCalls++;
         ult.Settled += _ => ultCalls++;
         ult.Post(5);
         Check("both-terminals-fire", ultCalls == 2);

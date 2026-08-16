@@ -20,9 +20,15 @@ no `[MovedFrom]`. `Gun`/`Enemy` remain game-side demos in `Scripts/Modifiers/`.
 deleted too — typed to `DamageEvent`, so it is a project-specific modifier, not a
 generic builtin.
 
+**2026-08 UltEvents removed:** `OnSettle` is now a plain C# `event Action<T>`
+(initialized `delegate { }` — never null), a code-only alias of `Settled`. The
+designer-wireable inspector terminal is gone by design: settle reactions live in code
+(`Settled` / `OnSettle` / `IEventListener<T>`). The plugin now has zero third-party
+dependencies.
+
 ## Dependencies
 
-- **UltEvents** — `OnSettle` terminal on `EventModified<T>`
+- **UltEvents** — removed 2026-08; `OnSettle` is now a plain C# `event Action<T>` (code-only subscription, alias of `Settled`). Scenes with serialized `OnSettle:` UltEvent data drop it silently on next save — rewire in code.
 - **Unity.Collections** — `UnsafeUtility.As` bitcasts (no boxing on hot path)
 - **UnityEditor** (`Editor/` only) — `EventModifiedDrawer` (custom property drawer)
 - Shapes (`MonoBehaviourGizmos`) — dropped in the field rewrite
@@ -323,10 +329,10 @@ Standalone pass (2026-08):
 
 - 🟡 **`Settled`/`OnSettle` subscriber exceptions are not isolated.** A throwing handler
   propagates through `Settle ← Continue ← handle Update ← modifier Update` into the
-  owner's `Update`, interrupting the remaining pipeline mid-walk. UltEvents'
-  `InvokeSafe` does per-listener try/catch for exactly this; the C# `Settled` event
-  doesn't. Fix: wrap `Settled?.Invoke`
-  per-subscriber (or document `InvokeSafe` usage for `OnSettle`).
+  owner's `Update`, interrupting the remaining pipeline mid-walk. Both terminals are
+  plain C# events now (no UltEvents `InvokeSafe` safety net) — if handler isolation is
+  ever needed, wrap the invokes per-subscriber (iterate `GetInvocationList()`, try/catch
+  per delegate).
 - 🟡 **IL2CPP/AOT unverified** (bitcasts, generic instantiations, SerializeReference —
   serialization itself verified editor-side only). Device smoke test before shipping.
 - 🟡 **Temporal semantics untested.** Self-tests pin single-frame behavior only

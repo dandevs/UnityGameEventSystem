@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using UltEvents;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
@@ -104,8 +103,12 @@ namespace EventPipelines
     [Serializable]
     public class EventModified<T> : EventModified
     {
-        /// <summary>Designer-wireable terminal. Invoked on every settle.</summary>
-        public UltEvent<T> OnSettle = new();
+        /// <summary>
+        /// Code terminal, invoked on every settle. Alias of <see cref="Settled"/> —
+        /// kept for call-site familiarity. Initialized to a no-op delegate so it is
+        /// never null, even on deserialization paths that skip field initializers.
+        /// </summary>
+        public event Action<T> OnSettle = delegate { };
 
         /// <summary>Code terminal. Invoked on every settle.</summary>
         public event Action<T> Settled;
